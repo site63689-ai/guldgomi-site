@@ -24,8 +24,11 @@ function makeAssistantConfig(env) {
 }
 
 function makeConfig(env = process.env) {
-  const publicBaseUrl = trimSlash(env.PUBLIC_BASE_URL);
-  const siteUrl = trimSlash(env.SITE_URL);
+  // Адрес сервера: PUBLIC_BASE_URL, а если его нет — домен, который Railway выдаёт сам (RAILWAY_PUBLIC_DOMAIN)
+  const railwayDomain = String(env.RAILWAY_PUBLIC_DOMAIN || '').trim();
+  const publicBaseUrl = trimSlash(env.PUBLIC_BASE_URL) || (railwayDomain ? 'https://' + railwayDomain : '');
+  // Сайт отдаётся этим же сервером, поэтому SITE_URL по умолчанию совпадает с адресом сервера
+  const siteUrl = trimSlash(env.SITE_URL) || publicBaseUrl;
   // Без этих двух адресов банку нечего сообщить в callback и некуда вернуть покупателя
   const urlsReady = !!publicBaseUrl && !!siteUrl;
 
@@ -50,10 +53,10 @@ function makeConfig(env = process.env) {
   tbc.enabled = !!(tbc.apiKey && tbc.clientId && tbc.clientSecret && urlsReady);
 
   return {
-    port: Number(env.PORT) || 3000,
+    port: Number(env.PORT) || 8000,
     publicBaseUrl,
     siteUrl,
-    allowedOrigins: list(env.ALLOWED_ORIGINS || env.SITE_URL).map(trimSlash),
+    allowedOrigins: list(env.ALLOWED_ORIGINS || env.SITE_URL || publicBaseUrl).map(trimSlash),
     dbPath: env.DB_PATH || path.join(process.cwd(), 'data', 'shop.db'),
     adminToken: env.ADMIN_TOKEN || '',
     defaultGateway: String(env.DEFAULT_PAYMENT_GATEWAY || '').toLowerCase(),

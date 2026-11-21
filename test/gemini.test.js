@@ -81,3 +81,27 @@ test('Gemini: запасные модели берутся из GEMINI_FALLBACK_
   assert.deepEqual(makeConfig({ GEMINI_API_KEY: 'k', GEMINI_FALLBACK_MODELS: '' }).assistant.fallbackModels, []);
   assert.deepEqual(makeConfig({ GEMINI_API_KEY: 'k', GEMINI_FALLBACK_MODELS: 'a, b' }).assistant.fallbackModels, ['a', 'b']);
 });
+
+test('Gemini: таймаут основной модели -> запасная; если обе недоступны — «много обращений»', async () => {
+  const calls = [];
+  const timeoutErr = () => { const e = new Error('The operation was aborted due to timeout'); e.name = 'TimeoutError'; return e; };
+  const fetchImpl = async url => {
+    calls.push(url);
+    if (calls.length === 1) throw timeoutErr();
+    return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ответ' }] } }] }) };
+  };
+  const c = makeGeminiClient({ apiKey: 'k', fetchImpl, fallbackModels: ['gemini-flash-lite-latest'] });
+  assert.equal((await c.messages.create({ model: 'gemini-flash-latest', messages: [{ role: 'user', content: 'x' }], system: [] })).content[0].text, 'ответ');
+  assert.ok(calls[1].includes('gemini-flash-lite-latest'));
+
+  const always503 = async () => ({ ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) });
+  const c2 = makeGeminiClient({ apiKey: 'k', fetchImpl: always503, fallbackModels: ['gemini-flash-lite-latest'] });
+  await assert.rejects(() => makeAssistant({ client: c2, model: 'm', knowledge: '# KB\n- Телефон: +995\n' }).reply({ text: 'привет' }), e => e.status === 429 && e.code === 'assistant_busy');
+});
+
+test('Gemini: таймаут одной попытки 10 с по умолчанию, реальный таймаут срабатывает', async () => {
+  const c = makeGeminiClient({ apiKey: 'k', timeoutMs: 50, fetchImpl: (url, init) => new Promise((_, rej) => init.signal.addEventListener('abort', () => rej(init.signal.reason))) });
+  const t0 = Date.now();
+  await assert.rejects(() => c.messages.create({ model: 'm', messages: [{ role: 'user', content: 'x' }], system: [] }), e => e.status === 504);
+  assert.ok(Date.now() - t0 < 2000);
+});

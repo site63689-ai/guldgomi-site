@@ -140,7 +140,8 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
     } catch (e) {
       console.error('[assistant] API error:', e && e.message);
       // лимит поставщика ИИ (бесплатные тарифы быстро упираются в лимит) — сообщаем «много обращений», а не «ошибка»
-      if (e && e.status === 429) throw new HttpError(429, 'assistant_busy', 'Assistant limit reached');
+      // 429 — лимит, 500/502/503/504 — перегрузка или таймаут провайдера: клиенту одинаково честно сказать «много обращений»
+      if (e && [429, 500, 502, 503, 504].includes(e.status)) throw new HttpError(429, 'assistant_busy', 'Assistant is busy');
       throw new HttpError(502, 'assistant_failed', 'Assistant is temporarily unavailable');
     } finally {
       inFlight--;

@@ -14,7 +14,7 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 // Ошибки ключа и запроса (400/401/403) повторять бесполезно.
 const RETRYABLE = status => status === undefined || status === 404 || status === 408 || status === 429 || status >= 500;
 
-function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 12000, baseUrl = BASE, fallbackModels = [] }) {
+function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 10000, baseUrl = BASE, fallbackModels = [] }) {
   async function create({ model, max_tokens, system, messages }) {
     // Основная модель, затем запасные. Если запасных нет — одна повторная попытка той же модели.
     const chain = [model, ...fallbackModels.filter(m => m && m !== model)];
@@ -31,18 +31,33 @@ function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 12
     throw lastErr;
   }
 
-  async function callOnce({ model, max_tokens, system, messages }) {
+  async function callOnce(args) {
+    // Таймер охватывает и ожидание ответа, и чтение тела — иначе зависший ответ мог бы тянуться бесконечно
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => { const e = new Error('timeout'); e.name = 'TimeoutError'; ctrl.abort(e); }, timeoutMs);
+    try { return await doCall(args, ctrl.signal); } finally { clearTimeout(timer); }
+  }
+
+  async function doCall({ model, max_tokens, system, messages }, signal) {
     const body = {
       system_instruction: { parts: (system || []).map(s => ({ text: s.text })) },
       contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
       generationConfig: { maxOutputTokens: max_tokens || 1500 }
     };
-    const res = await fetchImpl(`${baseUrl}/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST',
-      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs)
-    });
+    let res;
+    try {
+      res = await fetchImpl(`${baseUrl}/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST',
+        headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal
+      });
+    } catch (e) {
+      // Таймаут или обрыв сети: превращаем в понятную ошибку со статусом 504, чтобы сработала запасная модель
+      const err = new Error(e && (e.name === 'TimeoutError' || e.name === 'AbortError') ? `Gemini timeout (${timeoutMs} мс)` : `Gemini network error: ${e && e.message}`);
+      err.status = 504;
+      throw err;
+    }
     if (!res.ok) {
       let detail = '';
       try { detail = ((await res.json()).error || {}).message || ''; } catch (e) { /* не JSON */ }
