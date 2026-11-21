@@ -5,6 +5,22 @@ const list = v => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
 const trimSlash = s => String(s || '').trim().replace(/\/+$/, '');
 const pem = v => String(v || '').replace(/\\n/g, '\n').trim();
 
+function makeAssistantConfig(env) {
+  // GEMINI тоже принимаем как имя переменной — так её чаще всего называют по ошибке
+  const geminiKey = (env.GEMINI_API_KEY || env.GEMINI || '').trim();
+  const anthropicKey = (env.ANTHROPIC_API_KEY || '').trim();
+  let provider = String(env.AI_PROVIDER || '').toLowerCase();
+  if (provider !== 'gemini' && provider !== 'anthropic') provider = geminiKey ? 'gemini' : anthropicKey ? 'anthropic' : '';
+  const apiKey = provider === 'gemini' ? geminiKey : provider === 'anthropic' ? anthropicKey : '';
+  const model = provider === 'gemini' ? (env.GEMINI_MODEL || 'gemini-flash-latest') : (env.ANTHROPIC_MODEL || 'claude-haiku-5-5');
+  return {
+    provider, apiKey, model: String(model).trim(),
+    dailyLimit: Number(env.ASSISTANT_DAILY_LIMIT) || 300,
+    perIpDaily: Number(env.ASSISTANT_PER_IP_DAILY) || 60,
+    kbPath: env.KNOWLEDGE_BASE_PATH || path.join(__dirname, '..', 'knowledge', 'knowledge_base.md')
+  };
+}
+
 function makeConfig(env = process.env) {
   const publicBaseUrl = trimSlash(env.PUBLIC_BASE_URL);
   const siteUrl = trimSlash(env.SITE_URL);
@@ -40,13 +56,7 @@ function makeConfig(env = process.env) {
     adminToken: env.ADMIN_TOKEN || '',
     defaultGateway: String(env.DEFAULT_PAYMENT_GATEWAY || '').toLowerCase(),
     telegram: { token: (env.TELEGRAM_BOT_TOKEN || '').trim(), chatId: (env.TELEGRAM_CHAT_ID || '').trim() },
-    assistant: {
-      apiKey: (env.ANTHROPIC_API_KEY || '').trim(),
-      model: (env.ANTHROPIC_MODEL || 'claude-haiku-5-5').trim(),
-      dailyLimit: Number(env.ASSISTANT_DAILY_LIMIT) || 300,
-      perIpDaily: Number(env.ASSISTANT_PER_IP_DAILY) || 60,
-      kbPath: env.KNOWLEDGE_BASE_PATH || path.join(__dirname, '..', 'knowledge', 'knowledge_base.md')
-    },
+    assistant: makeAssistantConfig(env),
     reconcileEveryMs: (Number(env.RECONCILE_MINUTES) || 5) * 60 * 1000,
     bog,
     tbc
@@ -62,7 +72,7 @@ function configWarnings(cfg) {
   if (!cfg.bog.enabled && !cfg.tbc.enabled) w.push('Ни один банк не настроен — онлайн-оплата отключена (заказы «курьеру/на месте» работают).');
   if (cfg.bog.enabled && !cfg.bog.publicKey) w.push('BOG_CALLBACK_PUBLIC_KEY не задан — подпись callback BOG не проверяется (статус всё равно перепроверяется через API банка).');
   if (!cfg.telegram.token || !cfg.telegram.chatId) w.push('Telegram не настроен — уведомления отключены.');
-  if (!cfg.assistant.apiKey) w.push('ANTHROPIC_API_KEY не задан — ИИ-ассистент отключён (в виджете будут контакты поддержки).');
+  if (!cfg.assistant.apiKey) w.push('Ключ ИИ не задан (GEMINI_API_KEY или ANTHROPIC_API_KEY) — ИИ-ассистент отключён (в виджете будут контакты поддержки).');
   if (!cfg.adminToken) w.push('ADMIN_TOKEN не задан — админ-API выключен.');
   return w;
 }

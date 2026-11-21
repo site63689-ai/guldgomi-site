@@ -138,7 +138,9 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
         messages
       });
     } catch (e) {
-      console.error('[assistant] API error:', e && (e.status || e.message));
+      console.error('[assistant] API error:', e && e.message);
+      // лимит поставщика ИИ (бесплатные тарифы быстро упираются в лимит) — сообщаем «много обращений», а не «ошибка»
+      if (e && e.status === 429) throw new HttpError(429, 'assistant_busy', 'Assistant limit reached');
       throw new HttpError(502, 'assistant_failed', 'Assistant is temporarily unavailable');
     } finally {
       inFlight--;
@@ -165,10 +167,15 @@ function createAssistantFromConfig(cfg) {
   const a = cfg.assistant;
   if (!a.apiKey) return null;
   if (!fs.existsSync(a.kbPath)) { console.warn('⚠️  Не найден файл базы знаний:', a.kbPath, '— ассистент отключён. Запустите: npm run build-knowledge -- index.html'); return null; }
-  let Anthropic;
-  try { Anthropic = require('@anthropic-ai/sdk'); } catch (e) { console.warn('⚠️  Пакет @anthropic-ai/sdk не установлен (npm install) — ассистент отключён.'); return null; }
-  const Ctor = Anthropic.default || Anthropic;
-  const client = new Ctor({ apiKey: a.apiKey, timeout: 25000, maxRetries: 1 });
+  let client;
+  if (a.provider === 'gemini') {
+    client = require('./gemini-client').makeGeminiClient({ apiKey: a.apiKey });
+  } else {
+    let Anthropic;
+    try { Anthropic = require('@anthropic-ai/sdk'); } catch (e) { console.warn('⚠️  Пакет @anthropic-ai/sdk не установлен (npm install) — ассистент отключён.'); return null; }
+    const Ctor = Anthropic.default || Anthropic;
+    client = new Ctor({ apiKey: a.apiKey, timeout: 25000, maxRetries: 1 });
+  }
   return makeAssistant({ client, model: a.model, knowledge: fs.readFileSync(a.kbPath, 'utf8'), dailyLimit: a.dailyLimit, perIpDaily: a.perIpDaily });
 }
 

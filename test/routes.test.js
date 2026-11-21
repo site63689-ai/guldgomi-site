@@ -27,7 +27,7 @@ function load(fake) {
 
 function run(handlers, req) {
   return new Promise((resolve, reject) => {
-    const res = { code: 200, headers: {}, status(c) { this.code = c; return this; }, json(b) { resolve({ code: this.code, body: b }); }, sendStatus(c) { resolve({ code: c }); }, set() { return this; } };
+    const res = { code: 200, headers: {}, status(c) { this.code = c; return this; }, json(b) { resolve({ code: this.code, body: b }); }, send(b) { resolve({ code: this.code, html: b, headers: this.headers }); }, sendStatus(c) { resolve({ code: c }); }, set(h) { Object.assign(this.headers, h); return this; } };
     let i = 0;
     const next = err => { if (err) return reject(err); const h = handlers[i++]; if (!h) return resolve({ code: 'no-response' }); try { const r = h(req, res, next); if (r && r.catch) r.catch(reject); } catch (e) { reject(e); } };
     next();
@@ -71,4 +71,17 @@ test('ограничитель частоты на /assistant: 9-й запрос
   for (let i = 0; i < 9; i++) last = await run(h, { ip: '5.5.5.5', body: { text: 'x' } });
   assert.equal(last.code, 429);
   assert.equal((await run(h, { ip: '6.6.6.6', body: { text: 'x' } })).code, 200);
+});
+
+test('сайт отдаётся на / и /index.html; других файлов сервер не раздаёт', async () => {
+  const { createApp } = load(fakeExpress());
+  const app = createApp({ cfg, service, assistant: null, siteHtml: '<html>САЙТ</html>' });
+  for (const p of ['/', '/index.html']) {
+    const r = await run(app.routes.find(x => x.method === 'GET' && x.path === p).handlers, { ip: 'x' });
+    assert.equal(r.html, '<html>САЙТ</html>');
+    assert.match(r.headers['Content-Type'], /text\/html/);
+  }
+  assert.equal(app.routes.filter(x => x.method === 'GET').some(x => x.path === '/.env' || x.path === '/*'), false);
+  const none = load(fakeExpress()).createApp({ cfg, service, assistant: null });
+  assert.equal(none.routes.some(x => x.path === '/'), false, 'без файла сайта главная страница не регистрируется');
 });

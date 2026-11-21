@@ -1,4 +1,6 @@
 'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
 const { makeConfig, configWarnings } = require('./config');
 const { openDb } = require('./db');
 const { makeTelegram } = require('./telegram');
@@ -18,12 +20,20 @@ const telegram = makeTelegram(cfg);
 const payments = makePayments(cfg, { bog: makeBog(cfg), tbc: makeTbc(cfg) });
 const service = makeService({ db, cfg, payments, telegram });
 const assistant = createAssistantFromConfig(cfg);
-const app = createApp({ cfg, service, assistant });
+// Сайт лежит в public/index.html. Если задан PUBLIC_BASE_URL, адрес сервера подставляется в страницу автоматически
+const SITE_FILE = path.join(__dirname, '..', 'public', 'index.html');
+let siteHtml = null;
+if (fs.existsSync(SITE_FILE)) {
+  siteHtml = fs.readFileSync(SITE_FILE, 'utf8');
+  if (cfg.publicBaseUrl) siteHtml = siteHtml.replace("const ASSISTANT_API_URL = '';", 'const ASSISTANT_API_URL = ' + JSON.stringify(cfg.publicBaseUrl) + ';');
+}
+const app = createApp({ cfg, service, assistant, siteHtml });
 
 const server = app.listen(cfg.port, () => {
   console.log(`Guldgomi server запущен на порту ${cfg.port}`);
   console.log('Онлайн-оплата доступна через:', payments.enabledNames().join(', ') || '— (ни один банк не настроен)');
-  console.log('ИИ-ассистент:', assistant ? 'включён (' + cfg.assistant.model + ')' : 'выключен');
+  console.log('ИИ-ассистент:', assistant ? `включён (${cfg.assistant.provider}, ${cfg.assistant.model})` : 'выключен');
+  console.log('Сайт на главной странице:', siteHtml ? 'да (public/index.html)' : 'нет — положите index.html в папку public/');
   console.log('Telegram:', telegram.enabled ? 'включён' : 'выключен');
   configWarnings(cfg).forEach(w => console.warn('⚠️ ', w));
 });

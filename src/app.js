@@ -2,14 +2,14 @@
 const express = require('express');
 const { HttpError, rateLimit, safeEqual } = require('./util');
 
-function createApp({ cfg, service, assistant = null }) {
+function createApp({ cfg, service, assistant = null, siteHtml = null }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1); // Render/Railway стоят за прокси — нужен реальный IP клиента
 
   // Заголовки безопасности
   app.use((req, res, next) => {
-    res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' });
+    res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store', 'X-Frame-Options': 'SAMEORIGIN' });
     next();
   });
 
@@ -74,6 +74,13 @@ function createApp({ cfg, service, assistant = null }) {
   app.post('/api/v1/admin/orders/:id/status', adminAuth, requireAdmin, json, (req, res) => {
     res.json({ ok: service.admin.setOrderStatus(req.params.id, String(req.body && req.body.status)) });
   });
+
+  // Сам сайт (только эти два адреса — других файлов сервер не раздаёт)
+  if (siteHtml) {
+    const serveSite = (req, res) => { res.set({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.send(siteHtml); };
+    app.get('/', serveSite);
+    app.get('/index.html', serveSite);
+  }
 
   app.use((req, res) => res.status(404).json({ error: 'not_found' }));
 
