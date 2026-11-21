@@ -68,11 +68,11 @@ npm run build-knowledge -- путь/к/index.html
 
 | Переменная | Что это |
 |---|---|
-| `PUBLIC_BASE_URL` | https-адрес этого сервера (подставляется в сайт автоматически) |
+| `PUBLIC_BASE_URL` | https-адрес этого сервера. Для ассистента необязателен (сайт сам берёт свой адрес), нужен для оплаты банками |
 | `SITE_URL` | адрес сайта (куда банк вернёт покупателя) |
 | `ALLOWED_ORIGINS` | с каких адресов сайт может обращаться к серверу |
 | `DB_PATH` | путь к файлу базы на постоянном томе |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | бесплатный ассистент |
+| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_FALLBACK_MODELS` | бесплатный ассистент; запасная модель (по умолчанию `gemini-flash-lite-latest`) включается при 503/таймауте |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `AI_PROVIDER` | платный вариант |
 | `ASSISTANT_DAILY_LIMIT`, `ASSISTANT_PER_IP_DAILY` | потолок запросов к ассистенту |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | уведомления |

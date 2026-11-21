@@ -11,6 +11,7 @@ const { makeService } = require('./service');
 const { seedProductsIfEmpty } = require('./seed');
 const { createApp } = require('./app');
 const { createAssistantFromConfig } = require('./assistant');
+const { injectApiUrl } = require('./site');
 
 const cfg = makeConfig();
 const db = openDb(cfg.dbPath);
@@ -24,8 +25,7 @@ const assistant = createAssistantFromConfig(cfg);
 const SITE_FILE = path.join(__dirname, '..', 'public', 'index.html');
 let siteHtml = null;
 if (fs.existsSync(SITE_FILE)) {
-  siteHtml = fs.readFileSync(SITE_FILE, 'utf8');
-  if (cfg.publicBaseUrl) siteHtml = siteHtml.replace("const ASSISTANT_API_URL = '';", 'const ASSISTANT_API_URL = ' + JSON.stringify(cfg.publicBaseUrl) + ';');
+  siteHtml = injectApiUrl(fs.readFileSync(SITE_FILE, 'utf8'), cfg.publicBaseUrl);
 }
 const app = createApp({ cfg, service, assistant, siteHtml });
 

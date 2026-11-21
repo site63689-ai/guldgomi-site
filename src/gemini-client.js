@@ -10,8 +10,28 @@
  */
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
-function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 25000, baseUrl = BASE }) {
+// Ошибки, при которых имеет смысл попробовать другую модель (или ту же ещё раз): перегрузка Google, сбой, таймаут, лимит.
+// Ошибки ключа и запроса (400/401/403) повторять бесполезно.
+const RETRYABLE = status => status === undefined || status === 404 || status === 408 || status === 429 || status >= 500;
+
+function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 12000, baseUrl = BASE, fallbackModels = [] }) {
   async function create({ model, max_tokens, system, messages }) {
+    // Основная модель, затем запасные. Если запасных нет — одна повторная попытка той же модели.
+    const chain = [model, ...fallbackModels.filter(m => m && m !== model)];
+    if (chain.length === 1) chain.push(model);
+    let lastErr;
+    for (const m of chain.slice(0, 2)) {
+      try { return await callOnce({ model: m, max_tokens, system, messages }); }
+      catch (e) {
+        lastErr = e;
+        if (!RETRYABLE(e.status)) throw e;
+        console.warn(`[gemini] ${m}: ${e.message} — пробуем следующую попытку`);
+      }
+    }
+    throw lastErr;
+  }
+
+  async function callOnce({ model, max_tokens, system, messages }) {
     const body = {
       system_instruction: { parts: (system || []).map(s => ({ text: s.text })) },
       contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),

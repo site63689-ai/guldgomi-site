@@ -50,3 +50,34 @@ test('выбор провайдера по переменным окружени
   assert.deepEqual(pick({ ...base, GEMINI_API_KEY: 'g', GEMINI_MODEL: 'gemini-x' }), ['gemini', 'gemini-x']);
   function pick(env) { const a = makeConfig(env).assistant; return [a.provider, a.provider ? a.model : '']; }
 });
+
+test('Gemini: при 503 основной модели пробуется запасная', async () => {
+  const urls = [];
+  const fetchImpl = async url => {
+    urls.push(url);
+    if (urls.length === 1) return { ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) };
+    return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ок' }] } }] }) };
+  };
+  const c = makeGeminiClient({ apiKey: 'k', fetchImpl, fallbackModels: ['gemini-flash-lite-latest'] });
+  const out = await c.messages.create({ model: 'gemini-flash-latest', messages: [{ role: 'user', content: 'x' }], system: [] });
+  assert.equal(out.content[0].text, 'ок');
+  assert.ok(urls[0].includes('gemini-flash-latest:') && urls[1].includes('gemini-flash-lite-latest:'));
+});
+
+test('Gemini: без запасных моделей — одна повторная попытка; ошибка ключа не повторяется', async () => {
+  let n = 0;
+  const flaky = async () => (++n === 1 ? { ok: false, status: 503, json: async () => ({}) } : { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ок' }] } }] }) });
+  const c = makeGeminiClient({ apiKey: 'k', fetchImpl: flaky });
+  assert.equal((await c.messages.create({ model: 'm', messages: [{ role: 'user', content: 'x' }], system: [] })).content[0].text, 'ок');
+  assert.equal(n, 2);
+  let m = 0;
+  const bad = async () => { m++; return { ok: false, status: 403, json: async () => ({ error: { message: 'bad key' } }) }; };
+  await assert.rejects(() => makeGeminiClient({ apiKey: 'k', fetchImpl: bad, fallbackModels: ['x'] }).messages.create({ model: 'm', messages: [{ role: 'user', content: 'x' }], system: [] }), e => e.status === 403);
+  assert.equal(m, 1);
+});
+
+test('Gemini: запасные модели берутся из GEMINI_FALLBACK_MODELS (по умолчанию flash-lite)', () => {
+  assert.deepEqual(makeConfig({ GEMINI_API_KEY: 'k' }).assistant.fallbackModels, ['gemini-flash-lite-latest']);
+  assert.deepEqual(makeConfig({ GEMINI_API_KEY: 'k', GEMINI_FALLBACK_MODELS: '' }).assistant.fallbackModels, []);
+  assert.deepEqual(makeConfig({ GEMINI_API_KEY: 'k', GEMINI_FALLBACK_MODELS: 'a, b' }).assistant.fallbackModels, ['a', 'b']);
+});

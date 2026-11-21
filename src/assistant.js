@@ -169,7 +169,7 @@ function createAssistantFromConfig(cfg) {
   if (!fs.existsSync(a.kbPath)) { console.warn('⚠️  Не найден файл базы знаний:', a.kbPath, '— ассистент отключён. Запустите: npm run build-knowledge -- index.html'); return null; }
   let client;
   if (a.provider === 'gemini') {
-    client = require('./gemini-client').makeGeminiClient({ apiKey: a.apiKey });
+    client = require('./gemini-client').makeGeminiClient({ apiKey: a.apiKey, fallbackModels: a.fallbackModels || [] });
   } else {
     let Anthropic;
     try { Anthropic = require('@anthropic-ai/sdk'); } catch (e) { console.warn('⚠️  Пакет @anthropic-ai/sdk не установлен (npm install) — ассистент отключён.'); return null; }

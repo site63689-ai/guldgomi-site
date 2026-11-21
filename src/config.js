@@ -15,6 +15,8 @@ function makeAssistantConfig(env) {
   const model = provider === 'gemini' ? (env.GEMINI_MODEL || 'gemini-flash-latest') : (env.ANTHROPIC_MODEL || 'claude-haiku-5-5');
   return {
     provider, apiKey, model: String(model).trim(),
+    // запасные модели Gemini на случай перегрузки основной (через запятую; пусто = без запасных)
+    fallbackModels: provider === 'gemini' ? list(env.GEMINI_FALLBACK_MODELS === undefined ? 'gemini-flash-lite-latest' : env.GEMINI_FALLBACK_MODELS) : [],
     dailyLimit: Number(env.ASSISTANT_DAILY_LIMIT) || 300,
     perIpDaily: Number(env.ASSISTANT_PER_IP_DAILY) || 60,
     kbPath: env.KNOWLEDGE_BASE_PATH || path.join(__dirname, '..', 'knowledge', 'knowledge_base.md')
