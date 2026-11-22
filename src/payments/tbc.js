@@ -105,7 +105,13 @@ function makeTbc(cfg) {
     return { signatureChecked: c.enforceIp, signatureOk: ipOk, paymentId: paymentId ? String(paymentId) : null, externalOrderId: null };
   }
 
-  return { name: 'tbc', enabled: c.enabled, createPayment, getStatus, parseWebhook, _mapStatus: mapStatus };
+  /** Проверка ключей без создания платежа: просто получаем токен */
+  async function checkCredentials() {
+    await getToken(true);
+    return {};
+  }
+
+  return { name: 'tbc', enabled: c.enabled, createPayment, getStatus, parseWebhook, checkCredentials, _mapStatus: mapStatus };
 }
 
 module.exports = { makeTbc };

@@ -65,7 +65,30 @@ function openDb(file) {
       provider   TEXT NOT NULL,
       payload    TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS order_events (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id   TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      kind       TEXT NOT NULL,
+      detail     TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_events_order ON order_events(order_id);
   `);
+
+  // Миграция существующей базы: этап выполнения заказа и данные доставки
+  const cols = db.prepare('PRAGMA table_info(orders)').all().map(c => c.name);
+  const add = (name, ddl) => { if (!cols.includes(name)) db.exec(`ALTER TABLE orders ADD COLUMN ${name} ${ddl}`); };
+  add('stage', "TEXT NOT NULL DEFAULT 'new'");   // new | confirmed | packing | shipped | delivered | cancelled
+  add('courier', 'TEXT');
+  add('tracking_code', 'TEXT');
+  add('tracking_url', 'TEXT');
+  add('delivery_note', 'TEXT');                  // заметка, которую видит покупатель
+  add('shipped_at', 'TEXT');
+  add('delivered_at', 'TEXT');
+  // Старая версия хранила «доставлен/отменён» прямо в status — переносим в stage
+  db.exec(`UPDATE orders SET stage = 'delivered', status = CASE WHEN provider IS NULL THEN 'new' ELSE 'paid' END WHERE status = 'delivered'`);
+  db.exec(`UPDATE orders SET stage = 'cancelled', status = CASE WHEN provider IS NULL THEN 'new' ELSE 'paid' END WHERE status = 'cancelled'`);
   return db;
 }
 

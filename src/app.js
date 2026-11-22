@@ -17,7 +17,7 @@ function createApp({ cfg, service, assistant = null, siteHtml = null }) {
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin && cfg.allowedOrigins.includes(origin)) {
-      res.set({ 'Access-Control-Allow-Origin': origin, Vary: 'Origin', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Max-Age': '600' });
+      res.set({ 'Access-Control-Allow-Origin': origin, Vary: 'Origin', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Max-Age': '600' });
     }
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
@@ -43,8 +43,11 @@ function createApp({ cfg, service, assistant = null, siteHtml = null }) {
   app.get('/api/v1/reviews', limitLoose, (req, res) => res.json(service.approvedReviews()));
 
   app.post('/api/v1/orders', limitStrict, json, wrap(async (req, res) => res.status(201).json(await service.createOrder(req.body))));
-  app.post('/api/v1/orders/status', limitStrict, json, wrap(async (req, res) => {
-    res.json(service.publicOrderStatus(req.body && req.body.orderId, req.body && req.body.phone));
+  app.post('/api/v1/orders/status', limitLoose, json, wrap(async (req, res) => {
+    res.json(await service.refreshOrderStatus(req.body && req.body.orderId, req.body && req.body.phone));
+  }));
+  app.post('/api/v1/orders/received', limitStrict, json, wrap(async (req, res) => {
+    res.json(service.customerReceived(req.body && req.body.orderId, req.body && req.body.phone));
   }));
   app.post('/api/v1/reviews', limitStrict, json, wrap(async (req, res) => res.status(201).json(service.createReview(req.body))));
   // ИИ-ассистент: отдельный, более жёсткий лимит (каждый запрос стоит денег)
@@ -73,6 +76,23 @@ function createApp({ cfg, service, assistant = null, siteHtml = null }) {
   });
   app.post('/api/v1/admin/orders/:id/status', adminAuth, requireAdmin, json, (req, res) => {
     res.json({ ok: service.admin.setOrderStatus(req.params.id, String(req.body && req.body.status)) });
+  });
+  // Этапы заказа, трекинг доставки, получение оплаты наличными
+  app.post('/api/v1/admin/orders/:id/stage', adminAuth, requireAdmin, json, (req, res) => {
+    res.json(service.admin.setStage(req.params.id, req.body && req.body.stage, req.body && req.body.note));
+  });
+  app.post('/api/v1/admin/orders/:id/tracking', adminAuth, requireAdmin, json, (req, res) => {
+    res.json(service.admin.setTracking(req.params.id, req.body));
+  });
+  app.post('/api/v1/admin/orders/:id/paid', adminAuth, requireAdmin, json, (req, res) => {
+    res.json(service.admin.markPaid(req.params.id));
+  });
+  // Платёжные шлюзы: какие ключи введены, адреса webhook, проверка ключей
+  app.get('/api/v1/admin/payments', adminAuth, requireAdmin, (req, res) => res.json(service.admin.paymentsStatus()));
+  app.post('/api/v1/admin/payments/:name/check', adminAuth, requireAdmin, wrap(async (req, res) => res.json(await service.admin.checkPayment(req.params.name))));
+  // Каталог: сайт присылает свои товары и цены
+  app.post('/api/v1/admin/products/sync', adminAuth, requireAdmin, express.json({ limit: '300kb' }), (req, res) => {
+    res.json(service.admin.syncProducts(req.body && req.body.products));
   });
 
   // Сам сайт (только эти два адреса — других файлов сервер не раздаёт)

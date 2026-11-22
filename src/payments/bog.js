@@ -141,7 +141,13 @@ function makeBog(cfg) {
     };
   }
 
-  return { name: 'bog', enabled: c.enabled, createPayment, getStatus, parseWebhook, _mapStatus: mapStatus };
+  /** Проверка ключей без создания платежа: просто получаем токен */
+  async function checkCredentials() {
+    await getToken(true);
+    return { signatureKey: !!c.publicKey };
+  }
+
+  return { name: 'bog', enabled: c.enabled, createPayment, getStatus, parseWebhook, checkCredentials, _mapStatus: mapStatus };
 }
 
 module.exports = { makeBog };
