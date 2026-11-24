@@ -14,22 +14,25 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 // Ошибки ключа и запроса (400/401/403) повторять бесполезно.
 const RETRYABLE = status => status === undefined || status === 404 || status === 408 || status === 429 || status >= 500;
 
-function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 10000, baseUrl = BASE, fallbackModels = [], maxAttempts = 4, totalTimeoutMs = 24000, backoffMs = 300 }) {
+function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 10000, baseUrl = BASE, fallbackModels = [], maxAttempts = 4, totalTimeoutMs = 24000, backoffMs = 300, cooldownMs = 60000, now = () => Date.now() }) {
+  // Если модель только что не ответила (перегрузка/таймаут), на время cooldown пробуем её в последнюю очередь — клиенты не ждут впустую
+  const badUntil = new Map();
   async function create({ model, max_tokens, system, messages }) {
     // Основная модель, затем запасные. Если запасных нет — одна повторная попытка той же модели.
     const chain = [model, ...fallbackModels.filter(m => m && m !== model)];
     if (chain.length === 1) chain.push(model);
     const started = Date.now();
     let lastErr;
-    const tries = chain.slice(0, maxAttempts);
+    const tries = [...chain.filter(m => !(badUntil.get(m) > now())), ...chain.filter(m => badUntil.get(m) > now())].slice(0, maxAttempts);
     for (let i = 0; i < tries.length; i++) {
       const left = totalTimeoutMs - (Date.now() - started);
       if (i > 0 && left < 1500) break; // общий бюджет времени исчерпан: клиент получит ответ-заглушку, а не вечное ожидание
-      try { return await callOnce({ model: tries[i], max_tokens, system, messages }, Math.min(timeoutMs, Math.max(left, 1500))); }
+      try { const r = await callOnce({ model: tries[i], max_tokens, system, messages }, Math.min(timeoutMs, Math.max(left, 1500))); badUntil.delete(tries[i]); return r; }
       catch (e) {
         lastErr = e;
         if (!RETRYABLE(e.status)) throw e;
-        console.warn(`[gemini] ${tries[i]}: ${e.message} — пробуем следующую попытку`);
+        badUntil.set(tries[i], now() + cooldownMs);
+        console.warn(`[gemini] ${tries[i]}: ${e.message} — не ошибка для клиента, переходим к запасной модели (эту модель не трогаем ${Math.round(cooldownMs / 1000)} с)`);
         if (i < tries.length - 1 && backoffMs) await new Promise(r => setTimeout(r, backoffMs));
       }
     }

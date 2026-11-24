@@ -173,3 +173,16 @@ test('Кэш: повторный первый вопрос отвечается 
   await a.reply({ text: 'Как хранить мёд?', lang: 'en' }, '3.3.3.3'); // другой язык — другой ключ
   assert.equal(calls, 2);
 });
+
+test('Gemini: перегруженная модель на минуту уходит в конец очереди — следующие клиенты не ждут её', async () => {
+  const urls = []; let t = 1000;
+  const fetchImpl = async url => { urls.push(url); return url.includes('m1:') ? err503() : okGemini('ок'); };
+  const c = makeGeminiClient({ apiKey: 'k', fetchImpl, backoffMs: 1, fallbackModels: ['m2'], now: () => t });
+  const req = { model: 'm1', system: [], messages: [{ role: 'user', content: 'q' }] };
+  await c.messages.create(req);                       // m1 упала → m2
+  assert.deepEqual(urls.map(u => /m\d/.exec(u)[0]), ['m1', 'm2']);
+  urls.length = 0; await c.messages.create(req);      // сразу m2
+  assert.deepEqual(urls.map(u => /m\d/.exec(u)[0]), ['m2']);
+  urls.length = 0; t += 61000; await c.messages.create(req); // после паузы m1 снова пробуется первой
+  assert.equal(/m\d/.exec(urls[0])[0], 'm1');
+});
