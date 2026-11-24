@@ -56,6 +56,11 @@ function createApp({ cfg, service, assistant = null, siteHtml = null }) {
     if (!assistant) throw new HttpError(503, 'assistant_unavailable', 'Assistant is not configured');
     res.json(await assistant.reply(req.body, req.ip));
   }));
+  // Страница диагностики: открыть в браузере /api/v1/assistant/health. Только счётчики и коды, без ключей и текстов
+  app.get('/api/v1/assistant/health', limitLoose, (req, res) => {
+    if (!assistant) return res.json({ enabled: false, hint: 'Не задан GEMINI_API_KEY' });
+    res.json({ enabled: true, backupProvider: !!(cfg.assistant && cfg.assistant.backup), ...(assistant.stats || {}) });
+  });
   app.post('/api/v1/chat', limitStrict, json, wrap(async (req, res) => res.status(201).json(service.createChatMessage(req.body))));
 
   // ---------- Админ-API (по секретному токену в заголовке Authorization: Bearer ...) ----------

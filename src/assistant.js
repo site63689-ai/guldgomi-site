@@ -101,6 +101,9 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
   const CACHE_MAX = 300, CACHE_TTL = 12 * 3600 * 1000;
   const cacheKey = (text, lang, page) => `${lang}|${page}|${text.toLowerCase().replace(/[\s.!?,;:]+/g, ' ').trim()}`;
 
+  // Сводка для страницы диагностики (без текстов, ключей и вопросов покупателей)
+  const stats = { startedAt: new Date(now()).toISOString(), answered: 0, answeredFromReference: 0, failed: 0, lastOkAt: null, lastErrorAt: null, lastErrorStatus: null, startupCheck: 'не выполнялась' };
+
   const day = { key: '', total: 0, perIp: new Map() };
   let inFlight = 0;
   const fill = (t, lang) => t[lang].replace('{contacts}', contacts).trim();
@@ -150,11 +153,13 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
       });
     } catch (e) {
       console.error('[assistant] API error:', explainAiError(e));
+      stats.lastErrorAt = new Date(now()).toISOString(); stats.lastErrorStatus = (e && e.status) || 'network';
       // лимит поставщика ИИ (бесплатные тарифы быстро упираются в лимит) — сообщаем «много обращений», а не «ошибка»
       // 429 — лимит, 500/502/503/504 — перегрузка или таймаут провайдера: клиенту одинаково честно сказать «много обращений»
       // При ЛЮБОЙ ошибке ИИ (перегрузка, неверный ключ, сеть) частые вопросы — доставка, оплата, товары — получают ответ по справке магазина
       const fallback = offline.answer(text, lang);
-      if (fallback) return { reply: fallback, handoff: false, offline: true };
+      if (fallback) { stats.answeredFromReference++; return { reply: fallback, handoff: false, offline: true }; }
+      stats.failed++;
       if (e && [429, 500, 502, 503, 504].includes(e.status)) throw new HttpError(429, 'assistant_busy', 'Assistant is busy');
       throw new HttpError(502, 'assistant_failed', 'Assistant is temporarily unavailable');
     } finally {
@@ -171,12 +176,13 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
       return { reply: REFUSAL_TEXT[lang], handoff: false };
     }
     if (out.length > 2000) out = out.slice(0, 2000).trim() + '…';
+    stats.answered++; stats.lastOkAt = new Date(now()).toISOString();
     const result = { reply: out, handoff };
     if (useCache) { if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value); cache.set(ck, { at: now(), value: result }); }
     return result;
   }
 
-  return { reply, _rules: rules, _canary: canary };
+  return { reply, stats, _rules: rules, _canary: canary };
 }
 
 /** Создаёт ассистента из конфигурации; возвращает null, если ассистент не настроен. */
@@ -204,9 +210,10 @@ function createAssistantFromConfig(cfg) {
     try {
       const r = await client.messages.create({ model: a.model, max_tokens: 20, system: [{ type: 'text', text: 'Ответь одним словом: ок' }], messages: [{ role: 'user', content: 'проверка' }] });
       const ok = r && Array.isArray(r.content) && r.content.length;
+      assistant.stats.startupCheck = ok ? 'ok' : 'пустой ответ';
       console.log(ok ? '✅ ИИ-ассистент: ключ рабочий, модель отвечает' : '⚠️ ИИ-ассистент: модель вернула пустой ответ (возможно, сработал фильтр Google)');
       return !!ok;
-    } catch (e) { console.error('❌ ИИ-ассистент: проверка не пройдена —', explainAiError(e)); return false; }
+    } catch (e) { assistant.stats.startupCheck = 'ошибка ' + ((e && e.status) || 'сети'); console.error('❌ ИИ-ассистент: проверка не пройдена —', explainAiError(e)); return false; }
   };
   return assistant;
 }
