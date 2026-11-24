@@ -16,7 +16,9 @@ function makeAssistantConfig(env) {
   return {
     provider, apiKey, model: String(model).trim(),
     // запасные модели Gemini на случай перегрузки основной (через запятую; пусто = без запасных)
-    fallbackModels: provider === 'gemini' ? list(env.GEMINI_FALLBACK_MODELS === undefined ? 'gemini-flash-lite-latest' : env.GEMINI_FALLBACK_MODELS) : [],
+    fallbackModels: provider === 'gemini' ? list(env.GEMINI_FALLBACK_MODELS === undefined ? 'gemini-flash-lite-latest,gemini-2.5-flash,gemini-2.5-flash-lite' : env.GEMINI_FALLBACK_MODELS) : [],
+    // необязательный запасной провайдер (Groq, бесплатный тариф): подключается, если задан GROQ_API_KEY
+    backup: (env.GROQ_API_KEY || '').trim() ? { apiKey: env.GROQ_API_KEY.trim(), model: (env.GROQ_MODEL || 'llama-3.3-70b-versatile').trim(), baseUrl: (env.GROQ_BASE_URL || '').trim() } : null,
     dailyLimit: Number(env.ASSISTANT_DAILY_LIMIT) || 300,
     perIpDaily: Number(env.ASSISTANT_PER_IP_DAILY) || 60,
     kbPath: env.KNOWLEDGE_BASE_PATH || path.join(__dirname, '..', 'knowledge', 'knowledge_base.md')

@@ -14,27 +14,32 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 // Ошибки ключа и запроса (400/401/403) повторять бесполезно.
 const RETRYABLE = status => status === undefined || status === 404 || status === 408 || status === 429 || status >= 500;
 
-function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 10000, baseUrl = BASE, fallbackModels = [] }) {
+function makeGeminiClient({ apiKey, fetchImpl = globalThis.fetch, timeoutMs = 10000, baseUrl = BASE, fallbackModels = [], maxAttempts = 4, totalTimeoutMs = 24000, backoffMs = 300 }) {
   async function create({ model, max_tokens, system, messages }) {
     // Основная модель, затем запасные. Если запасных нет — одна повторная попытка той же модели.
     const chain = [model, ...fallbackModels.filter(m => m && m !== model)];
     if (chain.length === 1) chain.push(model);
+    const started = Date.now();
     let lastErr;
-    for (const m of chain.slice(0, 2)) {
-      try { return await callOnce({ model: m, max_tokens, system, messages }); }
+    const tries = chain.slice(0, maxAttempts);
+    for (let i = 0; i < tries.length; i++) {
+      const left = totalTimeoutMs - (Date.now() - started);
+      if (i > 0 && left < 1500) break; // общий бюджет времени исчерпан: клиент получит ответ-заглушку, а не вечное ожидание
+      try { return await callOnce({ model: tries[i], max_tokens, system, messages }, Math.min(timeoutMs, Math.max(left, 1500))); }
       catch (e) {
         lastErr = e;
         if (!RETRYABLE(e.status)) throw e;
-        console.warn(`[gemini] ${m}: ${e.message} — пробуем следующую попытку`);
+        console.warn(`[gemini] ${tries[i]}: ${e.message} — пробуем следующую попытку`);
+        if (i < tries.length - 1 && backoffMs) await new Promise(r => setTimeout(r, backoffMs));
       }
     }
     throw lastErr;
   }
 
-  async function callOnce(args) {
+  async function callOnce(args, attemptTimeoutMs = timeoutMs) {
     // Таймер охватывает и ожидание ответа, и чтение тела — иначе зависший ответ мог бы тянуться бесконечно
     const ctrl = new AbortController();
-    const timer = setTimeout(() => { const e = new Error('timeout'); e.name = 'TimeoutError'; ctrl.abort(e); }, timeoutMs);
+    const timer = setTimeout(() => { const e = new Error('timeout'); e.name = 'TimeoutError'; ctrl.abort(e); }, attemptTimeoutMs);
     try { return await doCall(args, ctrl.signal); } finally { clearTimeout(timer); }
   }
 

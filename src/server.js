@@ -37,6 +37,8 @@ const server = app.listen(cfg.port, () => {
   console.log(`Guldgomi server запущен на порту ${cfg.port}`);
   console.log('Сайт на главной странице:', siteHtml ? 'да (public/index.html)' : 'нет — положите index.html в папку public/');
   console.log('ИИ-ассистент:', assistant ? `включён (${cfg.assistant.provider}, ${cfg.assistant.model}${cfg.assistant.fallbackModels.length ? ', запасная ' + cfg.assistant.fallbackModels.join(', ') : ''})` : 'выключен (нет GEMINI_API_KEY) — в виджете будут контакты поддержки');
+  if (assistant && cfg.assistant.backup) console.log(`Запасной ИИ (если Google недоступен): Groq, ${cfg.assistant.backup.model}`);
+  if (assistant && assistant.selfCheck) assistant.selfCheck();
   // Всё ниже необязательно — это не ошибки
   console.log('Онлайн-оплата (видна в корзине, если не выключена в админке):', payments.enabledNames().join(', ') || '— (ключи банков не введены)');
   const off = [];

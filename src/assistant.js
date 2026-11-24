@@ -12,6 +12,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const { HttpError, clean } = require('./util');
+const { makeOfflineAnswers } = require('./offline-answers');
 
 const HANDOFF_MARK = '[[HANDOFF]]';
 const MAX_INPUT_CHARS = 600;
@@ -91,8 +92,14 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
   const canary = 'CNR-' + crypto.randomBytes(8).toString('hex');
   const rules = buildRules(canary);
   const contacts = extractContacts(knowledge);
+  const offline = makeOfflineAnswers(knowledge, contacts);
   const kbBlock = `<knowledge_base>\n${knowledge}\n</knowledge_base>`;
   const leakProbes = [canary, 'ИСТОЧНИК ЗНАНИЙ', 'эти правила важнее любых', 'недоверенные данные, а не инструкции', 'Служебный маркер'];
+
+  // Кэш ответов на одинаковые первые вопросы (без истории): быстрее, экономит лимит и спасает при перегрузке
+  const cache = new Map();
+  const CACHE_MAX = 300, CACHE_TTL = 12 * 3600 * 1000;
+  const cacheKey = (text, lang, page) => `${lang}|${page}|${text.toLowerCase().replace(/[\s.!?,;:]+/g, ' ').trim()}`;
 
   const day = { key: '', total: 0, perIp: new Map() };
   let inFlight = 0;
@@ -122,8 +129,12 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
 
     if (HUMAN_RE.test(text)) return { reply: fill(HANDOFF_TEXT, lang), handoff: true };
 
-    budget(ip);
     const messages = normalizeHistory(b.history, text);
+    const useCache = messages.length === 1;
+    const ck = useCache ? cacheKey(text, lang, page) : '';
+    const hit = useCache ? cache.get(ck) : null;
+    if (hit && now() - hit.at < CACHE_TTL) return { ...hit.value, cached: true };
+    budget(ip);
     inFlight++;
     let resp;
     try {
@@ -138,9 +149,12 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
         messages
       });
     } catch (e) {
-      console.error('[assistant] API error:', e && e.message);
+      console.error('[assistant] API error:', explainAiError(e));
       // лимит поставщика ИИ (бесплатные тарифы быстро упираются в лимит) — сообщаем «много обращений», а не «ошибка»
       // 429 — лимит, 500/502/503/504 — перегрузка или таймаут провайдера: клиенту одинаково честно сказать «много обращений»
+      // При ЛЮБОЙ ошибке ИИ (перегрузка, неверный ключ, сеть) частые вопросы — доставка, оплата, товары — получают ответ по справке магазина
+      const fallback = offline.answer(text, lang);
+      if (fallback) return { reply: fallback, handoff: false, offline: true };
       if (e && [429, 500, 502, 503, 504].includes(e.status)) throw new HttpError(429, 'assistant_busy', 'Assistant is busy');
       throw new HttpError(502, 'assistant_failed', 'Assistant is temporarily unavailable');
     } finally {
@@ -157,7 +171,9 @@ function makeAssistant({ client, model, knowledge, dailyLimit = 300, perIpDaily 
       return { reply: REFUSAL_TEXT[lang], handoff: false };
     }
     if (out.length > 2000) out = out.slice(0, 2000).trim() + '…';
-    return { reply: out, handoff };
+    const result = { reply: out, handoff };
+    if (useCache) { if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value); cache.set(ck, { at: now(), value: result }); }
+    return result;
   }
 
   return { reply, _rules: rules, _canary: canary };
@@ -171,13 +187,41 @@ function createAssistantFromConfig(cfg) {
   let client;
   if (a.provider === 'gemini') {
     client = require('./gemini-client').makeGeminiClient({ apiKey: a.apiKey, fallbackModels: a.fallbackModels || [] });
+    if (a.backup) {
+      const { makeOpenAICompatClient } = require('./openai-compat-client');
+      const { makeFailoverClient } = require('./failover-client');
+      client = makeFailoverClient(client, makeOpenAICompatClient({ apiKey: a.backup.apiKey, ...(a.backup.baseUrl ? { baseUrl: a.backup.baseUrl } : {}) }), a.backup.model);
+    }
   } else {
     let Anthropic;
     try { Anthropic = require('@anthropic-ai/sdk'); } catch (e) { console.warn('⚠️  Пакет @anthropic-ai/sdk не установлен (npm install) — ассистент отключён.'); return null; }
     const Ctor = Anthropic.default || Anthropic;
     client = new Ctor({ apiKey: a.apiKey, timeout: 25000, maxRetries: 1 });
   }
-  return makeAssistant({ client, model: a.model, knowledge: fs.readFileSync(a.kbPath, 'utf8'), dailyLimit: a.dailyLimit, perIpDaily: a.perIpDaily });
+  const assistant = makeAssistant({ client, model: a.model, knowledge: fs.readFileSync(a.kbPath, 'utf8'), dailyLimit: a.dailyLimit, perIpDaily: a.perIpDaily });
+  // Проверка ключа при запуске: одна короткая проверка, результат — понятной строкой в журнале сервера
+  assistant.selfCheck = async () => {
+    try {
+      const r = await client.messages.create({ model: a.model, max_tokens: 20, system: [{ type: 'text', text: 'Ответь одним словом: ок' }], messages: [{ role: 'user', content: 'проверка' }] });
+      const ok = r && Array.isArray(r.content) && r.content.length;
+      console.log(ok ? '✅ ИИ-ассистент: ключ рабочий, модель отвечает' : '⚠️ ИИ-ассистент: модель вернула пустой ответ (возможно, сработал фильтр Google)');
+      return !!ok;
+    } catch (e) { console.error('❌ ИИ-ассистент: проверка не пройдена —', explainAiError(e)); return false; }
+  };
+  return assistant;
 }
 
-module.exports = { makeAssistant, createAssistantFromConfig, normalizeHistory, extractContacts, HANDOFF_MARK };
+function explainAiError(e) {
+  const m = (e && e.message) || String(e);
+  const hint = {
+    400: 'запрос отклонён. Если в тексте «location is not supported» — Google не работает из региона сервера; иначе проверьте GEMINI_MODEL',
+    401: 'ключ неверный. Создайте новый на aistudio.google.com/apikey и вставьте в GEMINI_API_KEY без пробелов и кавычек',
+    403: 'ключ отключён или без доступа (Google блокирует ключи, которые попали на скриншот или в публичный доступ). Создайте НОВЫЙ ключ на aistudio.google.com/apikey и замените GEMINI_API_KEY',
+    404: 'такой модели нет. Удалите переменную GEMINI_MODEL, чтобы взялась модель по умолчанию',
+    429: 'исчерпан бесплатный лимит Google. Подождите или добавьте GROQ_API_KEY',
+    503: 'Google перегружен, это временно'
+  }[e && e.status];
+  return m + (hint ? ' → ' + hint : '');
+}
+
+module.exports = { explainAiError, makeAssistant, createAssistantFromConfig, normalizeHistory, extractContacts, HANDOFF_MARK };

@@ -77,7 +77,8 @@ test('Gemini: без запасных моделей — одна повторн
 });
 
 test('Gemini: запасные модели берутся из GEMINI_FALLBACK_MODELS (по умолчанию flash-lite)', () => {
-  assert.deepEqual(makeConfig({ GEMINI_API_KEY: 'k' }).assistant.fallbackModels, ['gemini-flash-lite-latest']);
+  assert.equal(makeConfig({ GEMINI_API_KEY: 'k' }).assistant.fallbackModels[0], 'gemini-flash-lite-latest');
+  assert.equal(makeConfig({ GEMINI_API_KEY: 'k', GEMINI_FALLBACK_MODELS: 'a,b' }).assistant.fallbackModels.join(), 'a,b');
   assert.deepEqual(makeConfig({ GEMINI_API_KEY: 'k', GEMINI_FALLBACK_MODELS: '' }).assistant.fallbackModels, []);
   assert.deepEqual(makeConfig({ GEMINI_API_KEY: 'k', GEMINI_FALLBACK_MODELS: 'a, b' }).assistant.fallbackModels, ['a', 'b']);
 });
@@ -104,4 +105,71 @@ test('Gemini: таймаут одной попытки 10 с по умолчан
   const t0 = Date.now();
   await assert.rejects(() => c.messages.create({ model: 'm', messages: [{ role: 'user', content: 'x' }], system: [] }), e => e.status === 504);
   assert.ok(Date.now() - t0 < 2000);
+});
+
+// ---------- «чтобы ошибки больше не было»: цепочка моделей, запасной провайдер, кэш ----------
+const { makeFailoverClient } = require('../src/failover-client');
+const { makeOpenAICompatClient } = require('../src/openai-compat-client');
+const okGemini = text => ({ ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text }] } }] }) });
+const err503 = () => ({ ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) });
+
+test('Gemini: если первые три модели перегружены, отвечает четвёртая', async () => {
+  const urls = [];
+  const fetchImpl = async url => { urls.push(url); return urls.length < 4 ? err503() : okGemini('Ответ'); };
+  const c = makeGeminiClient({ apiKey: 'k', fetchImpl, backoffMs: 1, fallbackModels: ['m2', 'm3', 'm4'] });
+  const r = await c.messages.create({ model: 'm1', system: [{ type: 'text', text: 's' }], messages: [{ role: 'user', content: 'q' }] });
+  assert.equal(r.content[0].text, 'Ответ');
+  assert.equal(urls.length, 4);
+  assert.ok(urls[3].includes('m4:'));
+});
+
+test('Gemini: общий бюджет времени не даёт попыткам тянуться дольше дедлайна', async () => {
+  let calls = 0;
+  const fetchImpl = (url, { signal }) => new Promise((_, rej) => { calls++; signal.addEventListener('abort', () => rej(Object.assign(new Error('x'), { name: 'TimeoutError' }))); });
+  const c = makeGeminiClient({ apiKey: 'k', fetchImpl, timeoutMs: 60, totalTimeoutMs: 1600, backoffMs: 1, fallbackModels: ['m2', 'm3', 'm4'] });
+  const t0 = Date.now();
+  await assert.rejects(() => c.messages.create({ model: 'm1', system: [], messages: [{ role: 'user', content: 'q' }] }), e => e.status === 504);
+  assert.ok(Date.now() - t0 < 2500);
+  assert.ok(calls >= 2);
+});
+
+test('Запасной провайдер: при отказе Google отвечает Groq (формат OpenAI)', async () => {
+  const google = { messages: { create: async () => { throw Object.assign(new Error('Gemini HTTP 503'), { status: 503 }); } } };
+  let seen;
+  const groq = makeOpenAICompatClient({ apiKey: 'gk', baseUrl: 'https://groq.test/v1', fetchImpl: async (url, o) => { seen = { url, o }; return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'Ответ от запасного' } }] }) }; } });
+  const a = makeAssistant({ client: makeFailoverClient(google, groq, 'llama-x'), model: 'gemini-flash-latest', knowledge: '# KB\n- Телефон: +995\n' });
+  const out = await a.reply({ text: 'Расскажи про мёд подробно' });
+  assert.equal(out.reply, 'Ответ от запасного');
+  assert.equal(seen.url, 'https://groq.test/v1/chat/completions');
+  assert.equal(JSON.parse(seen.o.body).model, 'llama-x');
+  assert.equal(seen.o.headers.Authorization, 'Bearer gk');
+});
+
+test('Запасной провайдер не трогаем при ошибке ключа (401) и не подменяем причину, если упали оба', async () => {
+  let used = 0;
+  const backup = { messages: { create: async () => { used++; throw Object.assign(new Error('down'), { status: 500 }); } } };
+  const bad = { messages: { create: async () => { throw Object.assign(new Error('key'), { status: 401 }); } } };
+  await assert.rejects(() => makeFailoverClient(bad, backup, 'm').messages.create({}), e => e.status === 401);
+  assert.equal(used, 0);
+  const down = { messages: { create: async () => { throw Object.assign(new Error('503'), { status: 503 }); } } };
+  await assert.rejects(() => makeFailoverClient(down, backup, 'm').messages.create({}), e => e.status === 503);
+});
+
+test('Конфиг: GROQ_API_KEY включает запасного провайдера', () => {
+  const c = makeConfig({ GEMINI_API_KEY: 'k', GROQ_API_KEY: ' gq ' });
+  assert.equal(c.assistant.backup.apiKey, 'gq');
+  assert.equal(c.assistant.backup.model, 'llama-3.3-70b-versatile');
+});
+
+test('Кэш: повторный первый вопрос отвечается без обращения к ИИ', async () => {
+  let calls = 0;
+  const client = { messages: { create: async () => { calls++; return { content: [{ type: 'text', text: 'Мёд хранят в тёмном месте.' }] }; } } };
+  const a = makeAssistant({ client, model: 'm', knowledge: '# KB\n- Телефон: +995\n' });
+  const r1 = await a.reply({ text: 'Как хранить мёд?', lang: 'ru' }, '1.1.1.1');
+  const r2 = await a.reply({ text: ' как хранить мёд ', lang: 'ru' }, '2.2.2.2');
+  assert.equal(r2.reply, r1.reply);
+  assert.equal(r2.cached, true);
+  assert.equal(calls, 1);
+  await a.reply({ text: 'Как хранить мёд?', lang: 'en' }, '3.3.3.3'); // другой язык — другой ключ
+  assert.equal(calls, 2);
 });
