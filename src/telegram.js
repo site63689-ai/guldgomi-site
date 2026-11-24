@@ -1,7 +1,7 @@
 'use strict';
 const { escapeHtml: h, fmtMoney } = require('./util');
 
-const METHOD_LABEL = { bog: 'Bank of Georgia (онлайн)', tbc: 'TBC Bank (онлайн)', stripe: 'Stripe (карта онлайн)', courier: 'Курьеру', cash: 'На месте' };
+const METHOD_LABEL = { bog: 'Bank of Georgia (онлайн)', tbc: 'TBC Bank (онлайн)', courier: 'Курьеру', cash: 'На месте' };
 const CAT_LABEL = { delivery: 'Доставка', payment: 'Оплата', problem: 'Проблема/Претензия', general: 'Общий вопрос' };
 
 function itemsText(order) {

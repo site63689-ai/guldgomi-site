@@ -12,9 +12,7 @@ test('Конфиг без единой переменной: порт 8000, ас
 test('Достаточно GEMINI_API_KEY: включается Gemini с запасной моделью', () => {
   const c = makeConfig({ GEMINI_API_KEY: 'k' });
   assert.equal(c.assistant.provider, 'gemini');
-  assert.equal(c.assistant.fallbackModels[0], 'gemini-flash-lite-latest');
-  assert.ok(c.assistant.fallbackModels.length >= 3);
-  assert.equal(c.assistant.backup, null);
+  assert.deepEqual(c.assistant.fallbackModels, ['gemini-flash-lite-latest']);
 });
 test('PORT от Railway используется', () => assert.equal(makeConfig({ PORT: '5123' }).port, 5123));
 test('Адрес сервера берётся из RAILWAY_PUBLIC_DOMAIN, SITE_URL и CORS — из него же', () => {

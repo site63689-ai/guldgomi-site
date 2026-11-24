@@ -16,9 +16,7 @@ function makeAssistantConfig(env) {
   return {
     provider, apiKey, model: String(model).trim(),
     // запасные модели Gemini на случай перегрузки основной (через запятую; пусто = без запасных)
-    fallbackModels: provider === 'gemini' ? list(env.GEMINI_FALLBACK_MODELS === undefined ? 'gemini-flash-lite-latest,gemini-2.5-flash,gemini-2.5-flash-lite' : env.GEMINI_FALLBACK_MODELS) : [],
-    // необязательный запасной провайдер (Groq, бесплатный тариф): подключается, если задан GROQ_API_KEY
-    backup: (env.GROQ_API_KEY || '').trim() ? { apiKey: env.GROQ_API_KEY.trim(), model: (env.GROQ_MODEL || 'llama-3.3-70b-versatile').trim(), baseUrl: (env.GROQ_BASE_URL || '').trim() } : null,
+    fallbackModels: provider === 'gemini' ? list(env.GEMINI_FALLBACK_MODELS === undefined ? 'gemini-flash-lite-latest' : env.GEMINI_FALLBACK_MODELS) : [],
     dailyLimit: Number(env.ASSISTANT_DAILY_LIMIT) || 300,
     perIpDaily: Number(env.ASSISTANT_PER_IP_DAILY) || 60,
     kbPath: env.KNOWLEDGE_BASE_PATH || path.join(__dirname, '..', 'knowledge', 'knowledge_base.md')
@@ -54,34 +52,19 @@ function makeConfig(env = process.env) {
   };
   tbc.enabled = !!(tbc.apiKey && tbc.clientId && tbc.clientSecret && urlsReady);
 
-  const stripe = {
-    secretKey: (env.STRIPE_SECRET_KEY || '').trim(),
-    webhookSecret: (env.STRIPE_WEBHOOK_SECRET || '').trim(),
-    apiBase: trimSlash(env.STRIPE_API_BASE || 'https://api.stripe.com'),
-    currency: 'gel' // суммы на сервере хранятся в тетри (1/100 лари), поэтому Stripe всегда получает GEL
-  };
-  // Секретный ключ должен начинаться с sk_ или rk_ (ключ pk_ — публичный, им платёж создать нельзя)
-  stripe.keyLooksValid = /^(sk|rk)_(live|test)_[A-Za-z0-9]{10,}$/.test(stripe.secretKey);
-  stripe.enabled = stripe.keyLooksValid && urlsReady;
-
-  // Слишком короткий токен администратора не принимаем — это защита заказов и клиентов
-  const adminTokenRaw = String(env.ADMIN_TOKEN || '');
-
   return {
     port: Number(env.PORT) || 8000,
     publicBaseUrl,
     siteUrl,
     allowedOrigins: list(env.ALLOWED_ORIGINS || env.SITE_URL || publicBaseUrl).map(trimSlash),
     dbPath: env.DB_PATH || path.join(process.cwd(), 'data', 'shop.db'),
-    adminToken: adminTokenRaw.length >= 16 ? adminTokenRaw : '',
-    adminTokenTooShort: adminTokenRaw.length > 0 && adminTokenRaw.length < 16,
+    adminToken: env.ADMIN_TOKEN || '',
     defaultGateway: String(env.DEFAULT_PAYMENT_GATEWAY || '').toLowerCase(),
     telegram: { token: (env.TELEGRAM_BOT_TOKEN || '').trim(), chatId: (env.TELEGRAM_CHAT_ID || '').trim() },
     assistant: makeAssistantConfig(env),
     reconcileEveryMs: (Number(env.RECONCILE_MINUTES) || 5) * 60 * 1000,
     bog,
-    tbc,
-    stripe
+    tbc
   };
 }
 
@@ -91,12 +74,11 @@ function configWarnings(cfg) {
   if (!cfg.siteUrl) w.push('SITE_URL не задан — банки отключены (некуда вернуть покупателя).');
   if (cfg.publicBaseUrl && !cfg.publicBaseUrl.startsWith('https://')) w.push('PUBLIC_BASE_URL должен начинаться с https:// (банки требуют HTTPS для callback).');
   if (!cfg.allowedOrigins.length) w.push('ALLOWED_ORIGINS пуст — браузер сайта не сможет обращаться к серверу.');
-  if (!cfg.bog.enabled && !cfg.tbc.enabled && !cfg.stripe.enabled) w.push('Ни один банк не настроен — онлайн-оплата отключена (заказы «курьеру/на месте» работают).');
+  if (!cfg.bog.enabled && !cfg.tbc.enabled) w.push('Ни один банк не настроен — онлайн-оплата отключена (заказы «курьеру/на месте» работают).');
   if (cfg.bog.enabled && !cfg.bog.publicKey) w.push('BOG_CALLBACK_PUBLIC_KEY не задан — подпись callback BOG не проверяется (статус всё равно перепроверяется через API банка).');
   if (!cfg.telegram.token || !cfg.telegram.chatId) w.push('Telegram не настроен — уведомления отключены.');
   if (!cfg.assistant.apiKey) w.push('Ключ ИИ не задан (GEMINI_API_KEY или ANTHROPIC_API_KEY) — ИИ-ассистент отключён (в виджете будут контакты поддержки).');
-  if (cfg.adminTokenTooShort) w.push('ADMIN_TOKEN короче 16 символов — админ-API выключен. Задайте длинный случайный пароль.');
-  else if (!cfg.adminToken) w.push('ADMIN_TOKEN не задан — админ-API выключен.');
+  if (!cfg.adminToken) w.push('ADMIN_TOKEN не задан — админ-API выключен.');
   return w;
 }
 

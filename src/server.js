@@ -7,7 +7,6 @@ const { openDb } = require('./db');
 const { makeTelegram } = require('./telegram');
 const { makeBog } = require('./payments/bog');
 const { makeTbc } = require('./payments/tbc');
-const { makeStripe } = require('./payments/stripe');
 const { makePayments } = require('./payments');
 const { makeService } = require('./service');
 const { seedProductsIfEmpty } = require('./seed');
@@ -24,7 +23,7 @@ const db = openDb(cfg.dbPath);
 seedProductsIfEmpty(db);
 
 const telegram = makeTelegram(cfg);
-const payments = makePayments(cfg, { bog: makeBog(cfg), tbc: makeTbc(cfg), stripe: makeStripe(cfg) });
+const payments = makePayments(cfg, { bog: makeBog(cfg), tbc: makeTbc(cfg) });
 const service = makeService({ db, cfg, payments, telegram });
 const assistant = createAssistantFromConfig(cfg);
 // Сайт лежит в public/index.html. Адрес сервера подставляется в страницу автоматически (PUBLIC_BASE_URL или адрес страницы)
@@ -37,15 +36,11 @@ const server = app.listen(cfg.port, () => {
   console.log(`Guldgomi server запущен на порту ${cfg.port}`);
   console.log('Сайт на главной странице:', siteHtml ? 'да (public/index.html)' : 'нет — положите index.html в папку public/');
   console.log('ИИ-ассистент:', assistant ? `включён (${cfg.assistant.provider}, ${cfg.assistant.model}${cfg.assistant.fallbackModels.length ? ', запасная ' + cfg.assistant.fallbackModels.join(', ') : ''})` : 'выключен (нет GEMINI_API_KEY) — в виджете будут контакты поддержки');
-  if (assistant && cfg.assistant.backup) console.log(`Запасной ИИ (если Google недоступен): Groq, ${cfg.assistant.backup.model}`);
-  if (assistant && assistant.selfCheck) assistant.selfCheck();
   // Всё ниже необязательно — это не ошибки
-  console.log('Онлайн-оплата (видна в корзине, если не выключена в админке):', payments.enabledNames().join(', ') || '— (ключи банков не введены)');
   const off = [];
   if (!payments.enabledNames().length) off.push('онлайн-оплата банками');
   if (!telegram.enabled) off.push('Telegram-уведомления');
-  if (cfg.adminTokenTooShort) off.push('управление заказами в админке (ADMIN_TOKEN короче 16 символов)');
-  else if (!cfg.adminToken) off.push('управление заказами в админке (не задан ADMIN_TOKEN)');
+  if (!cfg.adminToken) off.push('админ-API');
   console.log('Необязательные функции выключены:', off.join(', ') || '—');
 });
 

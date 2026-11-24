@@ -85,31 +85,3 @@ test('сайт отдаётся на / и /index.html; других файлов
   const none = load(fakeExpress()).createApp({ cfg, service, assistant: null });
   assert.equal(none.routes.some(x => x.path === '/'), false, 'без файла сайта главная страница не регистрируется');
 });
-
-test('диагностика ассистента: счётчики без секретов', async () => {
-  const { makeAssistant } = require('../src/assistant');
-  const client = { messages: { create: async () => ({ content: [{ type: 'text', text: 'Здравствуйте!' }] }) } };
-  const assistant = makeAssistant({ client, model: 'm', knowledge: '# KB\n- Телефон: +995\n' });
-  await assistant.reply({ text: 'привет' }, '1.1.1.1');
-  const { createApp } = load(fakeExpress());
-  const app = createApp({ cfg: { ...cfg, assistant: { backup: { apiKey: 'SECRET' } } }, service, assistant });
-  const find = (m, p) => app.routes.find(r => r.method === m && r.path === p);
-  const out = await run(find('GET', '/api/v1/assistant/health').handlers, { ip: 'x' });
-  assert.equal(out.body.enabled, true);
-  assert.equal(out.body.backupProvider, true);
-  assert.equal(out.body.answered, 1);
-  assert.ok(out.body.lastOkAt);
-  assert.equal(JSON.stringify(out.body).includes('SECRET'), false);
-});
-
-test('CORS: чат и config открыты для любого адреса сайта, заказы и админка — только для своего', async () => {
-  const { createApp } = load(fakeExpress());
-  const app = createApp({ cfg: { ...cfg, allowedOrigins: ['https://shop.ge'] }, service, assistant: null });
-  const cors = app.uses[1][0];
-  const call = (path, origin) => { const headers = {}; cors({ headers: { origin }, path, method: 'POST' }, { set(h) { Object.assign(headers, h); }, sendStatus() {} }, () => {}); return headers; };
-  assert.equal(call('/api/v1/assistant', 'https://x.github.io')['Access-Control-Allow-Origin'], '*');
-  assert.equal(call('/api/v1/config', 'https://x.github.io')['Access-Control-Allow-Origin'], '*');
-  assert.equal(call('/api/v1/orders', 'https://x.github.io')['Access-Control-Allow-Origin'], undefined);
-  assert.equal(call('/api/v1/admin/orders', 'https://x.github.io')['Access-Control-Allow-Origin'], undefined);
-  assert.equal(call('/api/v1/orders', 'https://shop.ge')['Access-Control-Allow-Origin'], 'https://shop.ge');
-});

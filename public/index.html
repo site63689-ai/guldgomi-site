@@ -175,22 +175,6 @@
         #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         .logo { touch-action: manipulation; }
         .pay-method-card.disabled { opacity: 0.5; cursor: not-allowed; }
-        .srv-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 0.85rem; padding: 1rem 1.15rem; margin-bottom: 1rem; }
-        .srv-box.ok { background: #ecfdf5; border-color: #a7f3d0; font-weight: 700; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-        .srv-box label { display: block; font-weight: 700; font-size: 0.9rem; margin-bottom: 0.4rem; }
-        .srv-note { font-size: 0.82rem; color: var(--text-light); line-height: 1.5; margin-top: 0.5rem; word-break: break-word; }
-        .srv-note.warn { color: #92400e; background: #fffbeb; border-radius: 0.5rem; padding: 0.4rem 0.6rem; }
-        .srv-note code { background: #f5f5f4; padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.8rem; }
-        .gw-card, .ord-card { background: #fafaf9; border: 1px solid var(--border); border-radius: 1rem; padding: 1rem 1.15rem; margin-bottom: 0.9rem; }
-        .gw-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-        .ord-badge { font-size: 0.8rem; font-weight: 700; background: #f5f5f4; color: #44403c; padding: 0.2rem 0.6rem; border-radius: 999px; }
-        .ord-badge.ok { background: #d1fae5; color: #065f46; }
-        .ord-badge.warn { background: #fef3c7; color: #92400e; }
-        .ord-stages { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0; }
-        .ord-stage-btn { border: 2px solid #e7e5e4; background: #fff; border-radius: 0.6rem; padding: 0.4rem 0.7rem; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
-        .ord-stage-btn.active { border-color: var(--primary); background: #fffbeb; color: var(--primary); }
-        .ord-stage-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        .ord-track { border-top: 1px dashed var(--border); margin-top: 0.75rem; padding-top: 0.75rem; }
         .qty-box { display: flex; align-items: center; gap: 0.4rem; }
         .qty-btn { width: 30px; height: 30px; border-radius: 0.5rem; border: 1px solid #d1d5db; background: #fff; font-weight: 800; cursor: pointer; }
         .admin-topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
@@ -378,7 +362,6 @@
                     <button type="button" class="admin-tab-btn" onclick="switchAdminTab('settingsTab', this)" id="tabSettings">Настройки и PIN</button>
                     <button type="button" class="admin-tab-btn" onclick="switchAdminTab('notifTab', this)" style="background:#fef3c7; color:#92400e;" id="tabNotif">🔔 Telegram и Уведомления</button>
                     <button type="button" class="admin-tab-btn" onclick="switchAdminTab('apiTab', this)" id="tabApi">💳 Оплата и API (Production)</button>
-                    <button type="button" class="admin-tab-btn" onclick="switchAdminTab('ordersAdminTab', this)" id="tabOrdersAdmin">📦 Заказы и доставка</button>
                     <button type="button" class="admin-tab-btn" onclick="switchAdminTab('adminReviewsTab', this)" id="tabReviews">Отзывы</button>
                     <button type="button" class="admin-tab-btn" onclick="switchAdminTab('adminChatTab', this)" id="tabChat">💬 Обращения (ИИ)</button>
                     <button type="button" class="admin-tab-btn" onclick="switchAdminTab('exportTab', this)" style="background:#dbeafe; color:#1e40af;" id="tabExport">📤 Сохранить для всех</button>
@@ -508,18 +491,10 @@
                     <button type="button" class="btn btn-outline" onclick="clearSecurityLogs()" style="margin-top: 0.75rem; font-size: 0.85rem; padding: 0.4rem 0.8rem;" id="btnClearLogs">Очистить журнал</button>
                 </div>
 
-                <div id="ordersAdminTab" class="admin-section">
-                    <div id="srvBoxOrders"></div>
-                    <div id="ordersAdminBody"></div>
-                </div>
-
                 <div id="apiTab" class="admin-section">
                     <h3 style="margin-bottom: 1.5rem; font-size: 1.25rem;" id="apiHeading">🔌 Настройка платежного API и эквайринга (Production)</h3>
                     <p style="font-size: 0.95rem; color: var(--text-light); margin-bottom: 1.5rem;" id="apiDesc">Для полноценного приема онлайн-платежей передайте эти настройки вашему программисту для интеграции с API банка (TBC, BOG, Stripe).</p>
                     
-                    <div id="srvBoxPay"></div>
-                    <div id="gatewayPanel" style="margin-bottom:1.5rem;"></div>
-
                     <div class="form-group">
                         <label id="labelGateway">Выберите платежный шлюз для интеграции</label>
                         <select id="settingGateway" onchange="toggleGatewayFields()">
@@ -626,7 +601,11 @@
             <div style="border-top: 1px solid var(--border); padding-top: 1rem;">
                 <h4 id="checkoutTitle" style="margin-bottom: 0.75rem; font-size: 1.15rem; font-weight: 700;">Оформление заказа и выбор оплаты</h4>
                 
-                <div class="payment-methods" id="paymentMethodsContainer"></div>
+                <div class="payment-methods" id="paymentMethodsContainer">
+                    <div class="pay-method-card active" id="methodApi" onclick="selectPaymentMethod('api')">💳 Онлайн-оплата (API)</div>
+                    <div class="pay-method-card" id="methodCourier" onclick="selectPaymentMethod('courier')">🤝 Курьеру</div>
+                    <div class="pay-method-card" id="methodCash" onclick="selectPaymentMethod('cash')">💵 На месте</div>
+                </div>
 
                 <div id="payNote" style="display:none; font-size:0.85rem; color:#92400e; background:#fffbeb; padding:0.6rem 0.85rem; border-radius:0.75rem; margin-bottom:1rem;"></div>
 
@@ -1464,98 +1443,6 @@
         TRANSLATIONS.en.labelSiteName = 'Brand / Website Name (RU / KA / EN)';
         TRANSLATIONS.ru.labelNewAdminRole = 'Роль и полномочия';
 
-        /* ---------- оплата через сервер, заказы и доставка: тексты ---------- */
-        Object.assign(MSG.ru, {
-            method_api: '💳 Онлайн-оплата (API)', method_tbc: '💳 Картой — TBC Bank', method_bog: '💳 Картой — Банк Грузии', method_stripe: '💳 Картой — Stripe', method_courier: '🤝 Курьеру', method_cash: '💵 На месте',
-            st_paid: 'Оплачен', st_confirmed: 'Подтверждён', st_packing: 'Собирается', st_shipped: 'Передан в доставку', st_failed: 'Оплата не прошла', st_review: 'Оплата на проверке', st_refunded: 'Деньги возвращены', st_cancelled: 'Отменён',
-            priceSync: 'Цены в каталоге обновляются. Обновите страницу и попробуйте оформить заказ ещё раз.',
-            serverErr: 'Не удалось связаться с сервером магазина. Проверьте интернет и попробуйте ещё раз.',
-            orderFailed: 'Не удалось оформить заказ. Попробуйте ещё раз или позвоните нам.',
-            tryLater: 'Слишком много запросов. Подождите минуту и повторите.',
-            payReturnOk: 'Оплата прошла. Спасибо за заказ! 🍯', payReturnPending: 'Платёж обрабатывается банком. Статус заказа обновится автоматически — обновите страницу через минуту.', payReturnFail: 'Оплата не завершена. Заказ не оплачен — вы можете оформить его заново.',
-            trkCourier: 'Курьер', trkCode: 'Номер отслеживания', trkLink: 'Открыть отслеживание',
-            srvTokenLabel: 'Пароль администратора сервера (ADMIN_TOKEN)', srvConnect: 'Подключиться', srvDisconnect: 'Отключиться', srvConnected: 'Подключено к серверу магазина',
-            srvTokenHint: 'Пароль задаётся на сервере в переменной ADMIN_TOKEN (Railway → Variables). В браузере он хранится только в этой вкладке и пропадает при её закрытии.',
-            srvBadToken: 'Неверный пароль администратора сервера.', srvNoAdmin: 'На сервере не задан ADMIN_TOKEN (не короче 16 символов). Добавьте его в Variables и подождите перезапуска.',
-            srvNoServer: 'Сайт открыт не через сервер магазина — оплата и заказы через сервер недоступны. Откройте сайт по адресу сервера.', srvNeedToken: 'Сначала подключитесь к серверу (введите ADMIN_TOKEN).',
-            gwTitle: '🏦 Платёжные шлюзы', gwHint: 'Ключи банков вводятся на сервере (Railway → Variables), а не на сайте. Здесь видно, что ключи приняты, и можно выбрать, какие способы показывать в корзине.',
-            gwReady: 'ключи введены', gwNoKeys: 'ключи не введены', gwShow: 'Показывать в корзине', gwMissing: 'Не хватает переменных', gwWebhook: 'Адрес для уведомлений банка (webhook)', gwCheck: 'Проверить ключи',
-            gwCheckOk: 'Ключи приняты ✅', gwCheckFail: 'Ключи не приняты: ', gwNoServer: 'Сервер магазина недоступен — статус шлюзов неизвестен.', gwConnectHint: 'Подключитесь к серверу, чтобы увидеть, каких переменных не хватает.',
-            catTitle: '📚 Каталог на сервере', catOk: 'совпадает с витриной', catDiff: 'отличается от витрины', catSync: 'Синхронизировать каталог', catSynced: 'Каталог отправлен на сервер ✅',
-            catHint: 'Цену заказа считает сервер, поэтому цены на сервере должны совпадать с витриной. После сохранения товара они отправляются автоматически, пока вы подключены к серверу.',
-            ordRefresh: '🔄 Обновить', fAll: 'Все', fActive: 'В работе', fPending: 'Ожидают оплаты', fShipped: 'В пути', fDone: 'Доставленные', fClosed: 'Отменённые / неоплаченные',
-            ordNone: 'Заказов нет.', ordLoading: 'Загрузка…', payPaid: '✅ Оплачено', payUnpaid: '💵 Не оплачено', ordMarkPaid: '💵 Оплата получена', ordTrackTitle: '🚚 Доставка и отслеживание',
-            ordCourier: 'Курьер / служба доставки', ordCode: 'Номер отслеживания', ordUrl: 'Ссылка для отслеживания', ordNote: 'Сообщение покупателю', ordSaveTrack: 'Сохранить доставку', ordSaved: 'Сохранено ✅',
-            ordPaymentNotFinal: 'Нельзя менять этап: оплата ещё не подтверждена банком.', ordBadUrl: 'Ссылка должна начинаться с http:// или https://',
-            ordRefundHint: 'Заказ оплачен онлайн: деньги нужно вернуть вручную в кабинете банка.', ordHistory: 'История'
-        });
-        Object.assign(MSG.en, {
-            method_api: '💳 Online payment (API)', method_tbc: '💳 Card — TBC Bank', method_bog: '💳 Card — Bank of Georgia', method_stripe: '💳 Card — Stripe', method_courier: '🤝 To courier', method_cash: '💵 On site',
-            st_paid: 'Paid', st_confirmed: 'Confirmed', st_packing: 'Being packed', st_shipped: 'Shipped', st_failed: 'Payment failed', st_review: 'Payment under review', st_refunded: 'Refunded', st_cancelled: 'Cancelled',
-            priceSync: 'Catalog prices are being updated. Refresh the page and try again.',
-            serverErr: 'Could not reach the shop server. Check your connection and try again.',
-            orderFailed: 'Could not place the order. Try again or call us.',
-            tryLater: 'Too many requests. Wait a minute and try again.',
-            payReturnOk: 'Payment received. Thank you for your order! 🍯', payReturnPending: 'The bank is still processing the payment. The order status will update automatically — refresh the page in a minute.', payReturnFail: 'Payment was not completed. The order is unpaid — you can place it again.',
-            trkCourier: 'Courier', trkCode: 'Tracking number', trkLink: 'Open tracking',
-            srvTokenLabel: 'Server administrator password (ADMIN_TOKEN)', srvConnect: 'Connect', srvDisconnect: 'Disconnect', srvConnected: 'Connected to the shop server',
-            srvTokenHint: 'The password is set on the server in the ADMIN_TOKEN variable (Railway → Variables). In the browser it is kept in this tab only and disappears when the tab is closed.',
-            srvBadToken: 'Wrong server administrator password.', srvNoAdmin: 'ADMIN_TOKEN is not set on the server (at least 16 characters). Add it in Variables and wait for the restart.',
-            srvNoServer: 'The site is not opened through the shop server, so server payments and orders are unavailable. Open the site at the server address.', srvNeedToken: 'Connect to the server first (enter ADMIN_TOKEN).',
-            gwTitle: '🏦 Payment gateways', gwHint: 'Bank keys are entered on the server (Railway → Variables), not on the site. Here you can see that the keys were accepted and choose which methods to show in the cart.',
-            gwReady: 'keys set', gwNoKeys: 'keys not set', gwShow: 'Show in cart', gwMissing: 'Missing variables', gwWebhook: 'Bank notification address (webhook)', gwCheck: 'Check keys',
-            gwCheckOk: 'Keys accepted ✅', gwCheckFail: 'Keys rejected: ', gwNoServer: 'The shop server is unreachable — gateway status unknown.', gwConnectHint: 'Connect to the server to see which variables are missing.',
-            catTitle: '📚 Catalog on the server', catOk: 'matches the storefront', catDiff: 'differs from the storefront', catSync: 'Sync catalog', catSynced: 'Catalog sent to the server ✅',
-            catHint: 'The server calculates the order total, so its prices must match the storefront. After you save a product they are sent automatically while you are connected to the server.',
-            ordRefresh: '🔄 Refresh', fAll: 'All', fActive: 'In progress', fPending: 'Awaiting payment', fShipped: 'On the way', fDone: 'Delivered', fClosed: 'Cancelled / unpaid',
-            ordNone: 'No orders.', ordLoading: 'Loading…', payPaid: '✅ Paid', payUnpaid: '💵 Not paid', ordMarkPaid: '💵 Payment received', ordTrackTitle: '🚚 Delivery and tracking',
-            ordCourier: 'Courier / delivery service', ordCode: 'Tracking number', ordUrl: 'Tracking link', ordNote: 'Message to the customer', ordSaveTrack: 'Save delivery', ordSaved: 'Saved ✅',
-            ordPaymentNotFinal: 'Cannot change the stage: the bank has not confirmed the payment yet.', ordBadUrl: 'The link must start with http:// or https://',
-            ordRefundHint: 'The order was paid online: refund the money manually in the bank dashboard.', ordHistory: 'History'
-        });
-        Object.assign(MSG.ka, {
-            method_api: '💳 ონლაინ გადახდა (API)', method_tbc: '💳 ბარათით — TBC Bank', method_bog: '💳 ბარათით — საქართველოს ბანკი', method_stripe: '💳 ბარათით — Stripe', method_courier: '🤝 კურიერთან', method_cash: '💵 ადგილზე',
-            st_paid: 'გადახდილია', st_confirmed: 'დადასტურებულია', st_packing: 'იკრიბება', st_shipped: 'გადაცემულია მიწოდებაზე', st_failed: 'გადახდა ვერ შესრულდა', st_review: 'გადახდა მოწმდება', st_refunded: 'თანხა დაბრუნებულია', st_cancelled: 'გაუქმებულია',
-            priceSync: 'კატალოგში ფასები განახლდება. განაახლეთ გვერდი და სცადეთ თავიდან.',
-            serverErr: 'მაღაზიის სერვერთან დაკავშირება ვერ მოხერხდა. შეამოწმეთ ინტერნეტი და სცადეთ თავიდან.',
-            orderFailed: 'შეკვეთის გაფორმება ვერ მოხერხდა. სცადეთ თავიდან ან დაგვირეკეთ.',
-            tryLater: 'ძალიან ბევრი მოთხოვნაა. დაელოდეთ ერთ წუთს და გაიმეორეთ.',
-            payReturnOk: 'გადახდა შესრულდა. გმადლობთ შეკვეთისთვის! 🍯', payReturnPending: 'გადახდას ბანკი ამუშავებს. შეკვეთის სტატუსი განახლდება — განაახლეთ გვერდი ერთ წუთში.', payReturnFail: 'გადახდა არ დასრულებულა. შეკვეთა გადაუხდელია — შეგიძლიათ თავიდან გააფორმოთ.',
-            trkCourier: 'კურიერი', trkCode: 'თვალთვალის ნომერი', trkLink: 'თვალთვალის გახსნა',
-            srvTokenLabel: 'სერვერის ადმინისტრატორის პაროლი (ADMIN_TOKEN)', srvConnect: 'დაკავშირება', srvDisconnect: 'გათიშვა', srvConnected: 'დაკავშირებულია მაღაზიის სერვერთან',
-            srvTokenHint: 'პაროლი ინახება სერვერზე, ცვლადში ADMIN_TOKEN (Railway → Variables). ბრაუზერში ის მხოლოდ ამ ჩანართში ინახება და ჩანართის დახურვისას იკარგება.',
-            srvBadToken: 'სერვერის ადმინისტრატორის პაროლი არასწორია.', srvNoAdmin: 'სერვერზე ADMIN_TOKEN არ არის დაყენებული (მინიმუმ 16 სიმბოლო). დაამატეთ Variables-ში და დაელოდეთ გადატვირთვას.',
-            srvNoServer: 'საიტი გახსნილია არა მაღაზიის სერვერიდან, ამიტომ სერვერის გადახდა და შეკვეთები მიუწვდომელია. გახსენით საიტი სერვერის მისამართზე.', srvNeedToken: 'ჯერ დაუკავშირდით სერვერს (შეიყვანეთ ADMIN_TOKEN).',
-            gwTitle: '🏦 გადახდის შლუზები', gwHint: 'ბანკის გასაღებები შეიყვანება სერვერზე (Railway → Variables), არა საიტზე. აქ ჩანს, მიღებულია თუ არა გასაღებები, და შეგიძლიათ აირჩიოთ, რომელი მეთოდები გამოჩნდეს კალათაში.',
-            gwReady: 'გასაღებები შეყვანილია', gwNoKeys: 'გასაღებები არ არის შეყვანილი', gwShow: 'კალათაში ჩვენება', gwMissing: 'აკლია ცვლადები', gwWebhook: 'ბანკის შეტყობინებების მისამართი (webhook)', gwCheck: 'გასაღებების შემოწმება',
-            gwCheckOk: 'გასაღებები მიღებულია ✅', gwCheckFail: 'გასაღებები არ მიიღეს: ', gwNoServer: 'მაღაზიის სერვერი მიუწვდომელია — შლუზების სტატუსი უცნობია.', gwConnectHint: 'დაუკავშირდით სერვერს, რომ ნახოთ რა ცვლადები აკლია.',
-            catTitle: '📚 კატალოგი სერვერზე', catOk: 'ემთხვევა ვიტრინას', catDiff: 'განსხვავდება ვიტრინისგან', catSync: 'კატალოგის სინქრონიზაცია', catSynced: 'კატალოგი გაიგზავნა სერვერზე ✅',
-            catHint: 'შეკვეთის თანხას სერვერი ითვლის, ამიტომ სერვერზე ფასები ვიტრინას უნდა ემთხვეოდეს. პროდუქტის შენახვის შემდეგ ისინი ავტომატურად იგზავნება, სანამ სერვერთან ხართ დაკავშირებული.',
-            ordRefresh: '🔄 განახლება', fAll: 'ყველა', fActive: 'მუშავდება', fPending: 'ელოდება გადახდას', fShipped: 'გზაშია', fDone: 'მიწოდებული', fClosed: 'გაუქმებული / გადაუხდელი',
-            ordNone: 'შეკვეთები არ არის.', ordLoading: 'იტვირთება…', payPaid: '✅ გადახდილია', payUnpaid: '💵 გადაუხდელია', ordMarkPaid: '💵 თანხა მიღებულია', ordTrackTitle: '🚚 მიწოდება და თვალთვალი',
-            ordCourier: 'კურიერი / მიწოდების სამსახური', ordCode: 'თვალთვალის ნომერი', ordUrl: 'თვალთვალის ბმული', ordNote: 'შეტყობინება მყიდველისთვის', ordSaveTrack: 'მიწოდების შენახვა', ordSaved: 'შენახულია ✅',
-            ordPaymentNotFinal: 'ეტაპის შეცვლა შეუძლებელია: გადახდა ბანკს ჯერ არ დაუდასტურებია.', ordBadUrl: 'ბმული უნდა იწყებოდეს http:// ან https://-ით',
-            ordRefundHint: 'შეკვეთა გადახდილია ონლაინ: თანხა ხელით უნდა დაუბრუნოთ ბანკის კაბინეტში.', ordHistory: 'ისტორია'
-        });
-        Object.assign(TRANSLATIONS.ru, {
-            tabOrdersAdmin: '📦 Заказы и доставка', labelGateway: 'Основной шлюз (показывается в корзине первым)',
-            apiDesc: 'Онлайн-оплата подключается на сервере магазина: ключи банков (TBC, Банк Грузии, Stripe) вводятся в настройках сервера, а здесь вы выбираете, какие способы оплаты показывать покупателям.',
-            apiPayDesc: 'После нажатия «Оформить заказ» вы перейдёте на защищённую страницу банка. Данные карты вводятся только там и не передаются магазину.',
-            labelToggleShowPayCard: 'Включить онлайн-оплату картой (общий переключатель)'
-        });
-        Object.assign(TRANSLATIONS.en, {
-            tabOrdersAdmin: '📦 Orders & delivery', labelGateway: 'Main gateway (shown first in the cart)',
-            apiDesc: 'Online payment is connected on the shop server: bank keys (TBC, Bank of Georgia, Stripe) are entered in the server settings, and here you choose which payment methods customers see.',
-            apiPayDesc: 'After you press “Place order” you will be taken to the bank’s secure page. Card details are entered only there and are never passed to the shop.',
-            labelToggleShowPayCard: 'Enable online card payment (master switch)'
-        });
-        Object.assign(TRANSLATIONS.ka, {
-            tabOrdersAdmin: '📦 შეკვეთები და მიწოდება', labelGateway: 'ძირითადი შლუზი (კალათაში პირველად ჩანს)',
-            apiDesc: 'ონლაინ გადახდა მაღაზიის სერვერზე ირთვება: ბანკების გასაღებები (TBC, საქართველოს ბანკი, Stripe) შეიყვანება სერვერის პარამეტრებში, აქ კი არჩევთ, რომელი გადახდის მეთოდები დაინახონ მყიდველებმა.',
-            apiPayDesc: '„შეკვეთის გაფორმებაზე“ დაჭერის შემდეგ გადახვალთ ბანკის დაცულ გვერდზე. ბარათის მონაცემები იწერება მხოლოდ იქ და მაღაზიას არ გადაეცემა.',
-            labelToggleShowPayCard: 'ბარათით ონლაინ გადახდის ჩართვა (მთავარი გადამრთველი)'
-        });
-
         const PLACEHOLDERS = {
             customerChatInput: 'phChat',
             custChatNameInput: 'phCustChatName',
@@ -1594,7 +1481,7 @@
             try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
             applyTranslations();
             renderPublic();
-            if (loggedInAdminRole) { renderAdmin(); fillAdminForms(); renderOrdersAdmin(); renderGatewayPanel(); }
+            if (loggedInAdminRole) { renderAdmin(); fillAdminForms(); }
             updateLockoutUI();
         }
 
@@ -1668,59 +1555,13 @@
 
         function toggleGatewayFields() {
             const gateway = byId('settingGateway').value;
-            // Когда работает сервер магазина, ключи вводятся на сервере — старые поля для ключей не нужны
-            byId('apiKeysContainer').style.display = (!serverCfg && gateway && gateway !== 'none') ? 'block' : 'none';
-        }
-
-        /* ---------- связь с сервером магазина: способы оплаты и заказы ---------- */
-        const ONLINE_GATEWAYS = ['tbc', 'bog', 'stripe'];
-        const SRV_TOKEN_KEY = 'guldgomi_srv_admin_token';
-        const JSON_HEADERS = { 'Content-Type': 'application/json' };
-        let serverCfg = null, serverCfgAt = 0, srvToken = '';
-        try { srvToken = sessionStorage.getItem(SRV_TOKEN_KEY) || ''; } catch (e) {}
-
-        // Адрес сервера подставляет сам сервер в константу ASSISTANT_API_URL (ниже, в блоке ассистента)
-        function serverBase() {
-            try { return String(typeof ASSISTANT_API_URL === 'string' ? ASSISTANT_API_URL : '').replace(/\/+$/, ''); } catch (e) { return ''; }
-        }
-        async function srvFetch(path, opts, timeoutMs) {
-            const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), timeoutMs || 12000);
-            try {
-                const res = await fetch(serverBase() + path, Object.assign({ signal: ctrl.signal }, opts || {}));
-                let data = null;
-                try { data = await res.json(); } catch (e) {}
-                return { ok: res.ok, status: res.status, data };
-            } finally { clearTimeout(timer); }
-        }
-        // Какие способы оплаты реально подключены на сервере (ключи введены). Если сервер недоступен — работает прежний режим.
-        async function loadServerConfig(force) {
-            if (!serverBase()) { serverCfg = null; return null; }
-            if (!force && serverCfg && Date.now() - serverCfgAt < 60000) return serverCfg;
-            try {
-                const r = await srvFetch('/api/v1/config', null, 6000);
-                if (!r.ok || !r.data || !Array.isArray(r.data.online) || !Array.isArray(r.data.offline)) throw new Error('bad config');
-                serverCfg = r.data; serverCfgAt = Date.now();
-            } catch (e) { serverCfg = null; }
-            return serverCfg;
+            byId('apiKeysContainer').style.display = (gateway && gateway !== 'none') ? 'block' : 'none';
         }
 
         /* ---------- способы оплаты ---------- */
-        function isOnlineMethod(id) { return id === 'api' || ONLINE_GATEWAYS.includes(id); }
-
-        // Способ виден в корзине, если: (1) он подключён на сервере (ключи введены) И (2) включён в админке.
         function availableMethods() {
             const s = state.settings || {};
             const list = [];
-            if (serverCfg) {
-                const gws = ONLINE_GATEWAYS.filter(id => serverCfg.online.includes(id) && s.showPayCard !== false && !(s.payGateways && s.payGateways[id] === false));
-                const pref = gws.indexOf(s.gateway);
-                if (pref > 0) gws.unshift(gws.splice(pref, 1)[0]); // выбранный в админке шлюз показываем первым
-                gws.forEach(id => list.push({ id, enabled: true }));
-                if (s.showPayCourier !== false && serverCfg.offline.includes('courier')) list.push({ id: 'courier', enabled: true });
-                if (s.showPayCash !== false && serverCfg.offline.includes('cash')) list.push({ id: 'cash', enabled: true });
-                return list;
-            }
             if (s.showPayCard !== false) list.push({ id: 'api', enabled: !!PAYMENT_BACKEND_URL });
             if (s.showPayCourier !== false) list.push({ id: 'courier', enabled: true });
             if (s.showPayCash !== false) list.push({ id: 'cash', enabled: true });
@@ -1728,27 +1569,23 @@
         }
 
         function selectPaymentMethod(type) {
-            const methods = availableMethods();
-            const m = methods.find(x => x.id === type);
+            const m = availableMethods().find(x => x.id === type);
             if (!m || !m.enabled) return;
             selectedPaymentType = type;
-            methods.forEach(x => { const b = byId('method_' + x.id); if (b) b.classList.toggle('active', x.id === type); });
-            byId('apiPaymentFields').style.display = isOnlineMethod(type) ? 'block' : 'none';
+            const ids = { api: 'methodApi', courier: 'methodCourier', cash: 'methodCash' };
+            Object.keys(ids).forEach(k => { const b = byId(ids[k]); if (b) b.classList.toggle('active', k === type); });
+            byId('apiPaymentFields').style.display = type === 'api' ? 'block' : 'none';
         }
-
-        function methodsSignature() { return availableMethods().map(m => m.id + (m.enabled ? '+' : '-')).join(','); }
 
         function setupPaymentMethods() {
             const methods = availableMethods();
-            const box = byId('paymentMethodsContainer');
-            box.textContent = '';
-            methods.forEach(m => {
-                const d = document.createElement('div');
-                d.className = 'pay-method-card' + (m.enabled ? '' : ' disabled');
-                d.id = 'method_' + m.id;
-                d.textContent = msg('method_' + m.id);
-                d.addEventListener('click', () => selectPaymentMethod(m.id));
-                box.appendChild(d);
+            const ids = { api: 'methodApi', courier: 'methodCourier', cash: 'methodCash' };
+            Object.keys(ids).forEach(k => {
+                const b = byId(ids[k]);
+                const m = methods.find(x => x.id === k);
+                b.style.display = m ? 'block' : 'none';
+                b.classList.toggle('disabled', !!m && !m.enabled);
+                b.classList.remove('active');
             });
             const note = byId('payNote');
             const first = methods.find(m => m.enabled);
@@ -1976,15 +1813,7 @@
             totalEl.textContent = msg('total') + ': ' + cartTotal() + ' ₾';
         }
 
-        function openCartModal() {
-            byId('cartModal').style.display = 'flex';
-            setupPaymentMethods(); updateCartUI();
-            // Список способов оплаты обновляем с сервера: если админ включил/выключил шлюз, корзина это покажет
-            const before = methodsSignature();
-            loadServerConfig(true).then(() => {
-                if (byId('cartModal').style.display === 'flex' && methodsSignature() !== before) setupPaymentMethods();
-            });
-        }
+        function openCartModal() { byId('cartModal').style.display = 'flex'; setupPaymentMethods(); updateCartUI(); }
         function closeCartModal() { byId('cartModal').style.display = 'none'; }
 
         /* ---------- заказы ---------- */
@@ -1998,62 +1827,12 @@
             state.customerOrders.unshift(order);
             const summary = order.items.map(i => getLocalized(i.name) + ' (' + i.qty + ' ' + msg('pcs') + ')').join(', ');
             logSecurityEvent('ORDER', 'Заказ ' + order.id + ' от ' + order.name + ' (' + order.phone + '), адрес: ' + order.address + '. Товары: ' + summary + '. Сумма: ' + order.total + ' ₾ (' + order.method + ')');
-            // Когда заказ принял сервер, Telegram-уведомление отправляет он сам (токен бота хранится только на сервере)
-            if (!order.server) sendTelegramMessage('🛒 <b>Новый заказ ' + tgEsc(order.id) + '</b>\n👤 ' + tgEsc(order.name) + '\n📞 ' + tgEsc(order.phone) + '\n📍 ' + tgEsc(order.address) +
+            sendTelegramMessage('🛒 <b>Новый заказ ' + tgEsc(order.id) + '</b>\n👤 ' + tgEsc(order.name) + '\n📞 ' + tgEsc(order.phone) + '\n📍 ' + tgEsc(order.address) +
                 '\n📦 ' + tgEsc(summary) + '\n💰 ' + order.total + ' ₾\n💳 ' + tgEsc(order.method) + ' | ' + tgEsc(order.status));
             cart = []; persistCart();
             persist(); updateCartUI(); closeCartModal(); renderCustomerOrders();
-            if (!order.server) syncOrderToCloud(order);
+            syncOrderToCloud(order);
             syncStateToCloud();
-        }
-
-        // Заказ через сервер магазина: цену считает сервер, оплата — на странице банка
-        async function submitOrderToServer(name, phone, address, lines) {
-            const btn = byId('btnSubmitOrder');
-            if (btn.disabled) return;
-            btn.disabled = true;
-            const method = selectedPaymentType;
-            const online = isOnlineMethod(method);
-            try {
-                // Каталог на сервере должен совпадать с витриной, иначе покупатель увидел бы одну сумму, а заплатил другую
-                const pr = await srvFetch('/api/v1/products', null, 8000);
-                if (!pr.ok || !Array.isArray(pr.data)) { alert(msg('serverErr')); return; }
-                const srvPrices = new Map(pr.data.map(p => [Number(p.id), Number(p.priceTetri)]));
-                if (!lines.every(l => srvPrices.get(l.p.id) === Math.round(l.p.price * 100))) { alert(msg('priceSync')); return; }
-
-                const r = await srvFetch('/api/v1/orders', {
-                    method: 'POST', headers: JSON_HEADERS,
-                    body: JSON.stringify({ customer: { name, phone, address }, items: lines.map(l => ({ id: l.p.id, qty: l.qty })), method, lang: currentLang })
-                }, 30000);
-                if (!r.ok || !r.data || !r.data.orderId) {
-                    const code = r.data && r.data.error;
-                    if (code === 'method_unavailable') { await loadServerConfig(true); setupPaymentMethods(); alert(msg('payUnavailable')); }
-                    else if (code === 'unknown_product') alert(msg('priceSync'));
-                    else if (r.status === 429) alert(msg('tryLater'));
-                    else alert(online ? msg('payFailed') : msg('orderFailed'));
-                    return;
-                }
-                const d = r.data;
-                const pending = d.status === 'pending_payment';
-                const order = {
-                    id: d.orderId, name, phone, address,
-                    items: lines.map(l => ({ id: l.p.id, name: l.p.name, price: l.p.price, qty: l.qty })),
-                    total: Number(d.totalTetri) / 100, method,
-                    status: pending ? 'pending_payment' : 'new', display: pending ? 'pending_payment' : 'new',
-                    time: new Date().toLocaleString(), server: true
-                };
-                if (online) {
-                    if (!/^https:\/\//i.test(String(d.redirectUrl || ''))) { alert(msg('payFailed')); return; }
-                    state.customerOrders.unshift(order);
-                    cart = []; persistCart(); persist(); updateCartUI(); renderCustomerOrders();
-                    window.location.href = d.redirectUrl;
-                    return;
-                }
-                finalizeOrder(order);
-                alert(msg('orderOk', { id: order.id }));
-            } catch (e) {
-                alert(online ? msg('payFailed') : msg('orderFailed'));
-            } finally { btn.disabled = false; }
         }
 
         async function submitOrder() {
@@ -2065,8 +1844,6 @@
             if (!name || !phone || !address) { alert(msg('fillAll')); return; }
             if (phone.replace(/\D/g, '').length < 7) { alert(msg('badPhone')); return; }
             if (!selectedPaymentType) { alert(msg('noMethods')); return; }
-
-            if (serverCfg) { await submitOrderToServer(name, phone, address, lines); return; }
 
             const order = {
                 id: newOrderId(), name, phone, address,
@@ -2098,33 +1875,6 @@
             alert(msg('orderOk', { id: order.id }));
         }
 
-        /* ---------- «Мои заказы»: статусы, трекинг, подтверждение получения ---------- */
-        const ORDER_FINAL = ['delivered', 'cancelled', 'failed', 'refunded'];
-
-        function applyServerStatus(ord, pub) {
-            if (!pub || typeof pub.display !== 'string') return;
-            ord.display = pub.display; ord.stage = pub.stage; ord.paid = !!pub.paid;
-            ord.tracking = pub.tracking || null; ord.history = Array.isArray(pub.history) ? pub.history : [];
-            ord.status = pub.display;
-        }
-
-        function trackingHtml(ord) {
-            const t = ord.tracking;
-            if (!t || !(t.courier || t.code || t.url || t.note)) return '';
-            const parts = [];
-            if (t.courier) parts.push('🚚 ' + esc(msg('trkCourier')) + ': <strong>' + esc(t.courier) + '</strong>');
-            if (t.code) parts.push('🔎 ' + esc(msg('trkCode')) + ': <strong>' + esc(t.code) + '</strong>');
-            if (t.url && /^https?:\/\//i.test(t.url)) parts.push('🔗 <a href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + esc(msg('trkLink')) + '</a>');
-            if (t.note) parts.push('💬 ' + esc(t.note));
-            return '<div style="font-size:0.9rem; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:0.75rem; padding:0.6rem 0.85rem; margin-bottom:0.75rem; line-height:1.7;">' + parts.join('<br>') + '</div>';
-        }
-
-        function historyHtml(ord) {
-            if (!Array.isArray(ord.history) || ord.history.length < 2) return '';
-            return '<div style="font-size:0.8rem; color:var(--text-light); margin-bottom:0.75rem; line-height:1.7;">' +
-                ord.history.map(h => '• ' + esc(msg('st_' + h.key)) + ' — ' + esc(new Date(h.at).toLocaleString())).join('<br>') + '</div>';
-        }
-
         function renderCustomerOrders() {
             const container = byId('customerOrdersList');
             if (!container) return;
@@ -2133,78 +1883,32 @@
                 container.innerHTML = '<p style="text-align:center; color:var(--text-light); padding:1rem;">' + esc(msg('ordersNone')) + '</p>';
                 return;
             }
-            container.innerHTML = orders.map(ord => {
-                const st = ord.display || ord.status;
-                const canConfirm = ord.server ? st === 'shipped' : ord.status === 'new';
-                return `
+            container.innerHTML = orders.map(ord => `
                 <div style="background:#fafaf9; border:1px solid var(--border); border-radius:1rem; padding:1.25rem; margin-bottom:1rem;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.5rem;">
                         <strong style="color:var(--primary); font-size:1.05rem;">${esc(msg('order'))} #${esc(ord.id)}</strong>
-                        <span style="font-size:0.85rem; background:#fef3c7; color:#92400e; padding:0.2rem 0.6rem; border-radius:6px; font-weight:700;">${esc(msg('status'))}: ${esc(msg('st_' + st))}</span>
+                        <span style="font-size:0.85rem; background:#fef3c7; color:#92400e; padding:0.2rem 0.6rem; border-radius:6px; font-weight:700;">${esc(msg('status'))}: ${esc(msg('st_' + ord.status))}</span>
                     </div>
                     <div style="font-size:0.9rem; color:var(--text-light); margin-bottom:0.75rem;">📅 ${esc(ord.time)} | 📍 ${esc(ord.address)}</div>
                     <div style="font-size:0.92rem; margin-bottom:0.75rem;"><strong>${esc(msg('items'))}:</strong> ${ord.items.map(i => esc(getLocalized(i.name)) + ' (' + esc(i.qty) + ' ' + esc(msg('pcs')) + ')').join(', ')}</div>
-                    ${trackingHtml(ord)}${historyHtml(ord)}
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
                         <span style="font-weight:800; font-size:1.1rem; color:var(--primary);">${esc(msg('sum'))}: ${esc(ord.total)} ₾</span>
-                        ${st === 'delivered'
+                        ${ord.status === 'delivered'
                             ? `<span style="color:#059669; font-weight:700; font-size:0.9rem;">${esc(msg('received'))}</span>`
-                            : (canConfirm ? `<button type="button" class="btn" style="background:#059669; padding:0.5rem 1rem; font-size:0.85rem;" onclick="confirmOrderReceived('${esc(ord.id)}')">${esc(msg('confirmRecv'))}</button>` : '')}
+                            : (ord.status === 'new' ? `<button type="button" class="btn" style="background:#059669; padding:0.5rem 1rem; font-size:0.85rem;" onclick="confirmOrderReceived('${esc(ord.id)}')">${esc(msg('confirmRecv'))}</button>` : '')}
                     </div>
-                </div>`;
-            }).join('');
+                </div>`).join('');
         }
 
-        async function confirmOrderReceived(orderId) {
+        function confirmOrderReceived(orderId) {
             const ord = (state.customerOrders || []).find(o => o.id === orderId);
-            if (!ord) return;
-            if (ord.server) {
-                try {
-                    const r = await srvFetch('/api/v1/orders/received', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ orderId: ord.id, phone: ord.phone }) }, 10000);
-                    if (!r.ok) { alert(msg('serverErr')); return; }
-                    applyServerStatus(ord, r.data);
-                } catch (e) { alert(msg('serverErr')); return; }
-            } else {
+            if (ord) {
                 ord.status = 'delivered';
+                persist();
+                renderCustomerOrders();
                 updateOrderStatusInCloud(orderId, 'delivered');
+                alert(msg('thanksRecv'));
             }
-            persist();
-            renderCustomerOrders();
-            alert(msg('thanksRecv'));
-        }
-
-        // Подтягиваем свежие статусы заказов, оформленных через сервер (оплата, этапы, трекинг).
-        // Повторный вызов во время загрузки получает тот же результат, а не пустой ответ.
-        let srvOrdersPromise = null;
-        function refreshServerOrders() {
-            if (!serverBase()) return Promise.resolve();
-            if (srvOrdersPromise) return srvOrdersPromise;
-            const list = (state.customerOrders || []).filter(o => o.server && !ORDER_FINAL.includes(o.display || o.status)).slice(0, 15);
-            if (!list.length) return Promise.resolve();
-            srvOrdersPromise = Promise.all(list.map(async ord => {
-                try {
-                    const r = await srvFetch('/api/v1/orders/status', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ orderId: ord.id, phone: ord.phone }) }, 10000);
-                    if (r.ok) applyServerStatus(ord, r.data);
-                } catch (e) { /* сеть недоступна — покажем то, что есть */ }
-            })).then(() => { persist(); renderCustomerOrders(); }).finally(() => { srvOrdersPromise = null; });
-            return srvOrdersPromise;
-        }
-
-        // Банк возвращает покупателя на сайт адресом вида /?payment=success&order=ORD-123456
-        async function handlePaymentReturn() {
-            let p;
-            try { p = new URLSearchParams(window.location.search); } catch (e) { return; }
-            const result = p.get('payment'), id = p.get('order');
-            if (!result || !id) return;
-            try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
-            switchView('orders');
-            const ord = (state.customerOrders || []).find(o => o.id === id);
-            if (!ord || !ord.server) return;
-            await refreshServerOrders();
-            const st = ord.display || ord.status;
-            if (st === 'pending_payment') toast(result === 'fail' ? msg('payReturnFail') : msg('payReturnPending'));
-            else if (ord.paid || ['paid', 'confirmed', 'packing', 'shipped', 'delivered'].includes(st)) toast(msg('payReturnOk'));
-            else toast(msg('payReturnFail'));
         }
 
         /* ---------- ИИ-ассистент и изолированные чаты покупателей ---------- */
@@ -2406,7 +2110,6 @@
             renderPublic();
             if (loggedInAdminRole) renderAdmin();
             syncStateToCloud();
-            try { srvAutoSync(); } catch (e) { /* сервер не подключён */ }
         }
 
         /* ---------- навигация ---------- */
@@ -2419,7 +2122,6 @@
             if (viewName === 'orders') {
                 renderCustomerOrders();
                 hydrateFromCloud();
-                refreshServerOrders();
             }
             if (viewName === 'chat') {
                 renderChats();
@@ -2433,13 +2135,13 @@
         }
 
         /* ---------- роли ---------- */
-        const ALL_TABS = ['productsTab', 'rolesTab', 'storyTab', 'deliveryTab', 'settingsTab', 'notifTab', 'apiTab', 'ordersAdminTab', 'adminReviewsTab', 'adminChatTab', 'exportTab'];
+        const ALL_TABS = ['productsTab', 'rolesTab', 'storyTab', 'deliveryTab', 'settingsTab', 'notifTab', 'apiTab', 'adminReviewsTab', 'adminChatTab', 'exportTab'];
         const ROLE_TABS = {
             super: ALL_TABS,
             senior: ALL_TABS.filter(t => t !== 'rolesTab'),
             junior: ['productsTab', 'adminReviewsTab', 'adminChatTab']
         };
-        const TAB_BTN = { productsTab: 'tabProd', rolesTab: 'tabRoles', storyTab: 'tabStory', deliveryTab: 'tabDeliveryAdmin', settingsTab: 'tabSettings', notifTab: 'tabNotif', apiTab: 'tabApi', ordersAdminTab: 'tabOrdersAdmin', adminReviewsTab: 'tabReviews', adminChatTab: 'tabChat', exportTab: 'tabExport' };
+        const TAB_BTN = { productsTab: 'tabProd', rolesTab: 'tabRoles', storyTab: 'tabStory', deliveryTab: 'tabDeliveryAdmin', settingsTab: 'tabSettings', notifTab: 'tabNotif', apiTab: 'tabApi', adminReviewsTab: 'tabReviews', adminChatTab: 'tabChat', exportTab: 'tabExport' };
 
         function can(tabId) { return !!loggedInAdminRole && (ROLE_TABS[loggedInAdminRole] || []).includes(tabId); }
         function requireAccess(tabId) { if (can(tabId)) return true; alert(msg('noRights')); return false; }
@@ -2459,8 +2161,6 @@
                 hydrateFromCloud();
                 renderAdminChats();
             }
-            if (tabId === 'ordersAdminTab') { renderServerBoxes(); refreshAdminOrders(); }
-            if (tabId === 'apiTab') renderGatewayPanel();
         }
 
         /* ---------- авторизация ---------- */
@@ -2954,252 +2654,8 @@
             s.showPayCard = byId('toggleShowPayCard').checked;
             s.showPayCourier = byId('toggleShowPayCourier').checked;
             s.showPayCash = byId('toggleShowPayCash').checked;
-            // переключатели «показывать в корзине» для TBC / Банк Грузии / Stripe
-            const gwIds = ONLINE_GATEWAYS.filter(id => byId('toggleGw_' + id));
-            if (gwIds.length) { s.payGateways = Object.assign({}, s.payGateways); gwIds.forEach(id => { s.payGateways[id] = byId('toggleGw_' + id).checked; }); }
             saveData(); alert(msg('saved'));
         }
-
-        /* ---------- админка: подключение к серверу, платёжные шлюзы, заказы и доставка ---------- */
-        const GW_LABEL = { tbc: 'TBC Bank', bog: 'Bank of Georgia', stripe: 'Stripe' };
-        const STAGES = ['new', 'confirmed', 'packing', 'shipped', 'delivered', 'cancelled'];
-        let srvPayments = null, srvOrders = [], srvOrdersFilter = 'active', srvOrdersLoading = false, srvOrdersError = '', srvSyncSig = '';
-
-        function srvSetToken(t) {
-            srvToken = t || '';
-            try { if (srvToken) sessionStorage.setItem(SRV_TOKEN_KEY, srvToken); else sessionStorage.removeItem(SRV_TOKEN_KEY); } catch (e) {}
-        }
-        // Запрос к админ-API сервера. Пароль живёт только в этой вкладке браузера (sessionStorage) и никуда не сохраняется.
-        async function srvAdmin(method, path, body) {
-            const r = await srvFetch('/api/v1/admin' + path, {
-                method, headers: Object.assign({ Authorization: 'Bearer ' + srvToken }, body ? JSON_HEADERS : {}), body: body ? JSON.stringify(body) : undefined
-            }, 20000);
-            if (r.status === 401) { srvSetToken(''); srvPayments = null; renderServerBoxes(); }
-            return r;
-        }
-
-        function srvBoxHtml() {
-            if (!serverBase()) return '<div class="srv-note">' + esc(msg('srvNoServer')) + '</div>';
-            if (srvToken) return '<div class="srv-box ok">✅ ' + esc(msg('srvConnected')) + ' <button type="button" class="btn btn-outline btn-sm" data-srv="disconnect">' + esc(msg('srvDisconnect')) + '</button></div>';
-            return '<div class="srv-box"><label>' + esc(msg('srvTokenLabel')) + '</label>' +
-                '<div style="display:flex; gap:0.5rem; flex-wrap:wrap;"><input type="password" class="srv-token-input" autocomplete="off" placeholder="ADMIN_TOKEN" style="flex:1; min-width:200px;">' +
-                '<button type="button" class="btn btn-sm" data-srv="connect">' + esc(msg('srvConnect')) + '</button></div>' +
-                '<div class="srv-note">' + esc(msg('srvTokenHint')) + '</div></div>';
-        }
-        function renderServerBoxes() { ['srvBoxPay', 'srvBoxOrders'].forEach(id => { const el = byId(id); if (el) el.innerHTML = srvBoxHtml(); }); }
-
-        async function srvConnect(token) {
-            token = String(token || '').trim();
-            if (token.length < 8) { alert(msg('srvBadToken')); return; }
-            srvSetToken(token);
-            const r = await srvAdmin('GET', '/payments');
-            if (r.status === 404) { srvSetToken(''); alert(msg('srvNoAdmin')); }
-            else if (r.status === 401) alert(msg('srvBadToken'));
-            else if (!r.ok) { srvSetToken(''); alert(msg('serverErr')); }
-            else { srvPayments = r.data; await loadServerConfig(true); }
-            renderServerBoxes();
-            renderGatewayPanel();
-            if (srvToken) refreshAdminOrders();
-        }
-        function srvDisconnect() { srvSetToken(''); srvPayments = null; srvOrders = []; renderServerBoxes(); renderGatewayPanel(); renderOrdersAdmin(); }
-
-        /* --- платёжные шлюзы и каталог --- */
-        async function renderGatewayPanel() {
-            renderServerBoxes();
-            const el = byId('gatewayPanel');
-            if (!el) return;
-            if (!serverBase()) { el.innerHTML = ''; return; }
-            if (!serverCfg) await loadServerConfig(true);
-            if (srvToken && !srvPayments) { const r = await srvAdmin('GET', '/payments'); if (r.ok) srvPayments = r.data; }
-            const s = state.settings || {};
-            let h = '<h4 style="margin-bottom:0.5rem; font-size:1.1rem;">' + esc(msg('gwTitle')) + '</h4><div class="srv-note" style="margin-bottom:0.75rem;">' + esc(msg('gwHint')) + '</div>';
-            if (!serverCfg) h += '<div class="srv-note">' + esc(msg('gwNoServer')) + '</div>';
-            else {
-                h += ONLINE_GATEWAYS.map(id => {
-                    const info = srvPayments && (srvPayments.gateways || []).find(g => g.name === id);
-                    const ready = info ? !!info.ready : serverCfg.online.includes(id);
-                    const on = !(s.payGateways && s.payGateways[id] === false);
-                    let c = '<div class="gw-card"><div class="gw-head"><strong>' + esc(GW_LABEL[id]) + '</strong><span class="ord-badge ' + (ready ? 'ok' : 'warn') + '">' + (ready ? '✅ ' + esc(msg('gwReady')) : '⚠️ ' + esc(msg('gwNoKeys'))) + (info && info.mode ? ' · ' + esc(info.mode) : '') + '</span></div>';
-                    c += '<label class="checkbox-group"><input type="checkbox" id="toggleGw_' + id + '"' + (on ? ' checked' : '') + '><span>' + esc(msg('gwShow')) + '</span></label>';
-                    if (info) {
-                        if (info.missing && info.missing.length) c += '<div class="srv-note warn">' + esc(msg('gwMissing')) + ': <code>' + info.missing.map(esc).join('</code>, <code>') + '</code></div>';
-                        (info.warnings || []).forEach(w => { c += '<div class="srv-note warn">⚠️ ' + esc(w) + '</div>'; });
-                        if (info.webhookUrl) c += '<div class="srv-note">' + esc(msg('gwWebhook')) + ': <code>' + esc(info.webhookUrl) + '</code><br>' + esc(info.webhookWhere || '') + '</div>';
-                        if (ready) c += '<button type="button" class="btn btn-outline btn-sm" data-gw="check" data-name="' + id + '">' + esc(msg('gwCheck')) + '</button>';
-                    } else if (!ready) c += '<div class="srv-note">' + esc(msg('gwConnectHint')) + '</div>';
-                    return c + '</div>';
-                }).join('');
-                h += '<div class="gw-card"><div class="gw-head"><strong>' + esc(msg('catTitle')) + '</strong><span class="ord-badge" id="catalogBadge">…</span></div>' +
-                    '<div class="srv-note">' + esc(msg('catHint')) + '</div><button type="button" class="btn btn-outline btn-sm" data-gw="sync">' + esc(msg('catSync')) + '</button></div>';
-            }
-            el.innerHTML = h;
-            if (serverCfg) updateCatalogBadge();
-        }
-
-        function catalogPayload() { return (state.products || []).filter(p => p.price > 0).map(p => ({ id: p.id, price: p.price, name: p.name })); }
-
-        async function updateCatalogBadge() {
-            const badge = byId('catalogBadge');
-            if (!badge) return;
-            try {
-                const r = await srvFetch('/api/v1/products', null, 8000);
-                if (!r.ok || !Array.isArray(r.data)) throw new Error('x');
-                const srv = new Map(r.data.map(p => [Number(p.id), Number(p.priceTetri)]));
-                const local = catalogPayload();
-                const same = local.length === srv.size && local.every(p => srv.get(p.id) === Math.round(p.price * 100));
-                badge.className = 'ord-badge ' + (same ? 'ok' : 'warn');
-                badge.textContent = same ? '✅ ' + msg('catOk') : '⚠️ ' + msg('catDiff');
-            } catch (e) { badge.textContent = '—'; }
-        }
-
-        async function srvSyncProducts(silent) {
-            if (!srvToken) { if (!silent) alert(msg('srvNeedToken')); return false; }
-            const products = catalogPayload();
-            if (!products.length) return false;
-            const r = await srvAdmin('POST', '/products/sync', { products });
-            if (r.ok) { srvSyncSig = JSON.stringify(products); if (!silent) alert(msg('catSynced')); updateCatalogBadge(); return true; }
-            if (!silent) alert(msg('serverErr'));
-            return false;
-        }
-        // Сохранили товар в админке — цены сразу уходят на сервер (если вы подключены к нему в этой вкладке)
-        let srvAutoSyncTimer = null;
-        function srvAutoSync() {
-            if (!srvToken || !serverBase()) return;
-            const sig = JSON.stringify(catalogPayload());
-            if (sig === srvSyncSig) return;
-            clearTimeout(srvAutoSyncTimer);
-            srvAutoSyncTimer = setTimeout(() => srvSyncProducts(true), 1500);
-        }
-
-        async function srvCheckGateway(name) {
-            const r = await srvAdmin('POST', '/payments/' + encodeURIComponent(name) + '/check');
-            if (!r.ok) { alert(msg('serverErr')); return; }
-            alert(r.data && r.data.ok ? msg('gwCheckOk') + (r.data.mode ? ' (' + r.data.mode + ')' : '') : msg('gwCheckFail') + ((r.data && r.data.error) || ''));
-        }
-
-        /* --- заказы и доставка --- */
-        const money = t => (Number(t) / 100).toFixed(2) + ' ₾';
-        const fmtDate = iso => { try { return new Date(iso).toLocaleString(); } catch (e) { return ''; } };
-        const FILTERS = {
-            active: o => !['delivered', 'cancelled', 'failed', 'refunded', 'pending_payment'].includes(o.display),
-            pending: o => ['pending_payment', 'review'].includes(o.display),
-            shipped: o => o.display === 'shipped',
-            done: o => o.display === 'delivered',
-            closed: o => ['cancelled', 'failed', 'refunded'].includes(o.display),
-            all: () => true
-        };
-
-        function ordCardHtml(o) {
-            if (!/^ORD-\d+$/.test(String(o.id))) return '';
-            const frozen = ['pending_payment', 'review'].includes(o.status);
-            const badOnline = ['failed', 'refunded'].includes(o.status);
-            const stageBtns = STAGES.map(st => {
-                const disabled = frozen || (badOnline && st !== 'cancelled');
-                return '<button type="button" class="ord-stage-btn' + (o.stage === st ? ' active' : '') + '" data-ord="stage" data-stage="' + st + '"' + (disabled ? ' disabled' : '') + '>' + esc(msg('st_' + st)) + '</button>';
-            }).join('');
-            const t = o.tracking || {};
-            const online = !!o.provider;
-            const payBadge = o.paid ? '<span class="ord-badge ok">' + esc(msg('payPaid')) + '</span>' : '<span class="ord-badge warn">' + esc(msg(online ? 'st_' + o.display : 'payUnpaid')) + '</span>';
-            const markPaid = (!online && !o.paid && o.stage !== 'cancelled') ? '<button type="button" class="btn btn-outline btn-sm" data-ord="paid">' + esc(msg('ordMarkPaid')) + '</button>' : '';
-            const refund = (o.stage === 'cancelled' && o.paid && online) ? '<div class="srv-note warn">⚠️ ' + esc(msg('ordRefundHint')) + '</div>' : '';
-            const hist = (o.history || []).map(h => '• ' + esc(msg('st_' + h.key)) + ' — ' + esc(fmtDate(h.at)) + (h.note ? ' (' + esc(h.note) + ')' : '')).join('<br>');
-            const field = (key, label, val, ph) => '<div class="form-group" style="margin-bottom:0.5rem;"><label style="font-size:0.8rem;">' + esc(label) + '</label><input type="text" data-field="' + key + '" value="' + esc(val || '') + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '></div>';
-            return '<div class="ord-card" data-id="' + esc(o.id) + '">' +
-                '<div class="gw-head"><strong style="color:var(--primary);">#' + esc(o.id) + '</strong><span class="ord-badge">' + esc(msg('st_' + o.display)) + '</span></div>' +
-                '<div style="font-size:0.85rem; color:var(--text-light); margin:0.25rem 0 0.6rem;">📅 ' + esc(fmtDate(o.createdAt)) + ' · ' + esc(msg('method_' + o.method)) + ' · ' + payBadge + '</div>' +
-                '<div style="font-size:0.95rem; line-height:1.6;">👤 <strong>' + esc(o.name) + '</strong> · 📞 <a href="tel:' + esc(String(o.phone).replace(/[^\d+]/g, '')) + '">' + esc(o.phone) + '</a><br>📍 ' + esc(o.address) + '<br>🛒 ' +
-                (o.items || []).map(i => esc(getLocalized(i.name)) + ' × ' + esc(i.qty)).join(', ') + '<br>💰 <strong>' + esc(money(o.totalTetri)) + '</strong></div>' +
-                '<div class="ord-stages">' + stageBtns + '</div>' + markPaid + refund +
-                '<div class="ord-track"><div style="font-weight:700; font-size:0.9rem; margin-bottom:0.5rem;">' + esc(msg('ordTrackTitle')) + '</div>' +
-                field('courier', msg('ordCourier'), t.courier) + field('code', msg('ordCode'), t.code) + field('url', msg('ordUrl'), t.url, 'https://') + field('note', msg('ordNote'), t.note) +
-                '<button type="button" class="btn btn-sm" data-ord="tracking">' + esc(msg('ordSaveTrack')) + '</button></div>' +
-                (hist ? '<div class="srv-note" style="margin-top:0.6rem;"><strong>' + esc(msg('ordHistory')) + ':</strong><br>' + hist + '</div>' : '') + '</div>';
-        }
-
-        function renderOrdersAdmin() {
-            renderServerBoxes();
-            const body = byId('ordersAdminBody');
-            if (!body) return;
-            if (!srvToken) { body.innerHTML = ''; return; }
-            const opts = [['active', 'fActive'], ['pending', 'fPending'], ['shipped', 'fShipped'], ['done', 'fDone'], ['closed', 'fClosed'], ['all', 'fAll']];
-            const list = srvOrders.filter(FILTERS[srvOrdersFilter] || FILTERS.all);
-            body.innerHTML = '<div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; margin:1rem 0;">' +
-                '<select data-ord-filter style="padding:0.45rem 0.6rem; border-radius:0.6rem; border:1px solid var(--border);">' + opts.map(([k, l]) => '<option value="' + k + '"' + (k === srvOrdersFilter ? ' selected' : '') + '>' + esc(msg(l)) + ' (' + srvOrders.filter(FILTERS[k]).length + ')</option>').join('') + '</select>' +
-                '<button type="button" class="btn btn-outline btn-sm" data-ord="refresh">' + esc(msg('ordRefresh')) + '</button></div>' +
-                (srvOrdersError ? '<div class="srv-note warn">' + esc(srvOrdersError) + '</div>' : '') +
-                (srvOrdersLoading && !srvOrders.length ? '<p class="srv-note">' + esc(msg('ordLoading')) + '</p>' : (list.length ? list.map(ordCardHtml).join('') : '<p class="srv-note">' + esc(msg('ordNone')) + '</p>'));
-        }
-
-        async function refreshAdminOrders() {
-            if (!srvToken) { renderOrdersAdmin(); return; }
-            srvOrdersLoading = true; srvOrdersError = '';
-            renderOrdersAdmin();
-            try {
-                const r = await srvAdmin('GET', '/orders');
-                if (r.ok && Array.isArray(r.data)) srvOrders = r.data;
-                else if (r.status !== 401) srvOrdersError = r.status === 404 ? msg('srvNoAdmin') : msg('serverErr');
-            } catch (e) { srvOrdersError = msg('serverErr'); }
-            srvOrdersLoading = false;
-            renderOrdersAdmin();
-        }
-
-        function replaceOrder(o) {
-            const i = srvOrders.findIndex(x => x.id === o.id);
-            if (i >= 0) srvOrders[i] = o; else srvOrders.unshift(o);
-            const card = document.querySelector('#ordersAdminBody .ord-card[data-id="' + o.id + '"]');
-            // если заказ после изменения перестал подходить под фильтр — перерисуем весь список, иначе заменим только карточку
-            if (card && (FILTERS[srvOrdersFilter] || FILTERS.all)(o)) card.outerHTML = ordCardHtml(o); else renderOrdersAdmin();
-        }
-
-        async function ordAction(act, card, btn) {
-            const id = card && card.getAttribute('data-id');
-            let r;
-            if (act === 'stage') r = await srvAdmin('POST', '/orders/' + encodeURIComponent(id) + '/stage', { stage: btn.getAttribute('data-stage') });
-            else if (act === 'paid') r = await srvAdmin('POST', '/orders/' + encodeURIComponent(id) + '/paid', {});
-            else if (act === 'tracking') {
-                const v = k => (card.querySelector('[data-field="' + k + '"]') || {}).value || '';
-                r = await srvAdmin('POST', '/orders/' + encodeURIComponent(id) + '/tracking', { courier: v('courier'), code: v('code'), url: v('url'), note: v('note') });
-            }
-            if (!r) return;
-            if (r.ok) { replaceOrder(r.data); if (act === 'tracking') toast(msg('ordSaved')); return; }
-            const code = r.data && r.data.error;
-            if (code === 'payment_not_final' || code === 'payment_invalid') alert(msg('ordPaymentNotFinal'));
-            else if (code === 'bad_url') alert(msg('ordBadUrl'));
-            else if (r.status !== 401) alert(msg('serverErr'));
-        }
-
-        // Один обработчик на всю админку: кнопки помечены data-атрибутами (без onclick со вставкой данных)
-        (function bindAdminDelegates() {
-            const root = byId('adminDashboard');
-            root.addEventListener('click', e => {
-                const btn = e.target.closest('[data-srv],[data-ord],[data-gw]');
-                if (!btn || btn.disabled) return;
-                if (btn.hasAttribute('data-srv')) {
-                    const act = btn.getAttribute('data-srv');
-                    if (act === 'disconnect') srvDisconnect();
-                    else { const inp = btn.closest('.srv-box').querySelector('input'); srvConnect(inp && inp.value); }
-                } else if (btn.hasAttribute('data-gw')) {
-                    const act = btn.getAttribute('data-gw');
-                    if (act === 'sync') srvSyncProducts(false); else if (act === 'check') srvCheckGateway(btn.getAttribute('data-name'));
-                } else {
-                    const act = btn.getAttribute('data-ord');
-                    if (act === 'refresh') refreshAdminOrders(); else ordAction(act, btn.closest('.ord-card'), btn);
-                }
-            });
-            root.addEventListener('change', e => {
-                if (e.target.matches('[data-ord-filter]')) { srvOrdersFilter = e.target.value; renderOrdersAdmin(); }
-            });
-            root.addEventListener('keydown', e => {
-                if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('srv-token-input')) srvConnect(e.target.value);
-            });
-            // новые заказы подтягиваем сами, пока открыта вкладка «Заказы» (не трогаем, если вы что-то вводите)
-            setInterval(() => {
-                const tab = byId('ordersAdminTab');
-                if (!srvToken || !tab || !tab.classList.contains('active') || document.hidden) return;
-                if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#ordersAdminBody') && /input|select/i.test(document.activeElement.tagName)) return;
-                srvAdmin('GET', '/orders').then(r => { if (r.ok && Array.isArray(r.data)) { srvOrders = r.data; renderOrdersAdmin(); } }).catch(() => {});
-            }, 30000);
-        })();
 
         /* ---------- отзывы ---------- */
         function submitReview(e) {
@@ -3248,7 +2704,7 @@
 
             const clone = document.documentElement.cloneNode(true);
             ['adminProductList', 'adminsListContainer', 'securityLogContainer', 'adminReviewsList', 'adminChatSessionsList', 'adminChatMessages', 'customerChatMessages',
-             'customerOrdersList', 'customerProducts', 'reviewsList', 'heroGalleryGrid', 'prodGalleryGrid', 'cartItemsContainer', 'awLog', 'awChips', 'ordersAdminBody', 'gatewayPanel', 'srvBoxPay', 'srvBoxOrders'].forEach(id => {
+             'customerOrdersList', 'customerProducts', 'reviewsList', 'heroGalleryGrid', 'prodGalleryGrid', 'cartItemsContainer', 'awLog', 'awChips'].forEach(id => {
                 const el = clone.querySelector('#' + id); if (el) el.innerHTML = '';
             });
             clone.querySelectorAll('.view').forEach(v => { v.style.display = 'none'; });
@@ -3300,8 +2756,6 @@
         updateLockoutUI();
         switchView('shop');
         hydrateFromCloud();
-        // Сервер магазина: какие способы оплаты подключены; возврат покупателя со страницы банка
-        setTimeout(() => { loadServerConfig(true).then(() => handlePaymentReturn()); }, 0);
     
         /* ================= ИИ-ассистент: виджет ================= */
         // Адрес вашего сервера (HTTPS, без слэша в конце), например 'https://guldgomi-server.onrender.com'.
