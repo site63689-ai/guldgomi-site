@@ -1,0 +1,17 @@
+{
+  "name": "guldgomi-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Сервер для Guldgomi Honey: заказы, Telegram, оплата BOG и TBC",
+  "main": "src/server.js",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "build-knowledge": "node scripts/build-knowledge.js",
+    "sync-products": "node --disable-warning=ExperimentalWarning scripts/sync-products.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
