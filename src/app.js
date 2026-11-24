@@ -2,6 +2,8 @@
 const express = require('express');
 const { HttpError, rateLimit, safeEqual } = require('./util');
 
+const PUBLIC_PATHS = new Set(['/api/v1/assistant', '/api/v1/assistant/health', '/api/v1/config', '/health']);
+
 function createApp({ cfg, service, assistant = null, siteHtml = null }) {
   const app = express();
   app.disable('x-powered-by');
@@ -16,7 +18,11 @@ function createApp({ cfg, service, assistant = null, siteHtml = null }) {
   // CORS: только ваш сайт. Вебхуки банков идут сервер-в-сервер и CORS не требуют.
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && cfg.allowedOrigins.includes(origin)) {
+    // Публичные безопасные адреса (чат помощника, список способов оплаты, диагностика) открыты для сайта с любого адреса:
+    // иначе чат ломается, если сайт открыт не по адресу сервера (другой домен, GitHub Pages). Куки и пароли здесь не участвуют.
+    if (origin && PUBLIC_PATHS.has(req.path)) {
+      res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Max-Age': '600' });
+    } else if (origin && cfg.allowedOrigins.includes(origin)) {
       res.set({ 'Access-Control-Allow-Origin': origin, Vary: 'Origin', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Max-Age': '600' });
     }
     if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -52,14 +58,22 @@ function createApp({ cfg, service, assistant = null, siteHtml = null }) {
   app.post('/api/v1/reviews', limitStrict, json, wrap(async (req, res) => res.status(201).json(service.createReview(req.body))));
   // ИИ-ассистент: отдельный, более жёсткий лимит (каждый запрос стоит денег)
   const limitAssistant = rateLimit({ windowMs: 60 * 1000, max: 8 });
-  app.post('/api/v1/assistant', limitAssistant, express.json({ limit: '8kb' }), wrap(async (req, res) => {
+  // Счётчик обращений виджета к серверу: видно, доходят ли запросы с сайта, и с какого адреса
+  const traffic = { requests: 0, lastRequestAt: null, lastOrigin: null, lastHttpStatus: null };
+  const track = (req, res, next) => {
+    traffic.requests++; traffic.lastRequestAt = new Date().toISOString();
+    traffic.lastOrigin = String(req.headers && req.headers.origin || 'тот же адрес (без Origin)').slice(0, 100);
+    if (typeof res.on === 'function') res.on('finish', () => { traffic.lastHttpStatus = res.statusCode; });
+    next();
+  };
+  app.post('/api/v1/assistant', track, limitAssistant, express.json({ limit: '8kb' }), wrap(async (req, res) => {
     if (!assistant) throw new HttpError(503, 'assistant_unavailable', 'Assistant is not configured');
     res.json(await assistant.reply(req.body, req.ip));
   }));
   // Страница диагностики: открыть в браузере /api/v1/assistant/health. Только счётчики и коды, без ключей и текстов
   app.get('/api/v1/assistant/health', limitLoose, (req, res) => {
     if (!assistant) return res.json({ enabled: false, hint: 'Не задан GEMINI_API_KEY' });
-    res.json({ enabled: true, backupProvider: !!(cfg.assistant && cfg.assistant.backup), ...(assistant.stats || {}) });
+    res.json({ enabled: true, backupProvider: !!(cfg.assistant && cfg.assistant.backup), ...(assistant.stats || {}), widget: traffic });
   });
   app.post('/api/v1/chat', limitStrict, json, wrap(async (req, res) => res.status(201).json(service.createChatMessage(req.body))));
 
